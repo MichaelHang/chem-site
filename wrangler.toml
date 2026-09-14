@@ -6,4 +6,4 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "chem-db"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "99927e55-61b3-452c-9a87-3d7d64e6a07c"
