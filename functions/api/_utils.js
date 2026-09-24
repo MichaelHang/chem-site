@@ -5,7 +5,7 @@ import { scrypt, randomBytes } from 'node:crypto';
 export const CONFIG = {
   TOKEN_TTL_MS: 30 * 24 * 3600 * 1000,
   USER_RE: /^[a-zA-Z0-9_]{3,20}$/,
-  DATA_KEYS: ['records', 'points', 'levels', 'rewards', 'flash', 'practice'],
+  DATA_KEYS: ['records', 'points', 'levels', 'rewards', 'flash', 'practice', 'timed'],
 };
 
 export function send(obj, status = 200) {

@@ -110,7 +110,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .level-box{background:linear-gradient(135deg,#eef5ff,#f7faff);border:1px solid #d6e6ff;border-radius:12px;padding:14px;margin-top:6px;}
 .level-group-title{font-weight:700;color:var(--text);margin:4px 0 10px;font-size:14px;}
 .level-map{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-bottom:16px;}
-.lv-card{position:relative;background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;min-height:100px;display:flex;flex-direction:column;justify-content:space-between;transition:.15s;cursor:default;}
+.lv-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;min-height:100px;display:flex;flex-direction:column;justify-content:space-between;transition:.15s;cursor:default;}
 .lv-card.open{border-color:var(--primary);box-shadow:0 4px 14px rgba(80,130,255,.12);cursor:pointer;}
 .lv-card.cleared{background:linear-gradient(135deg,#eafaf0,#f4fcf7);border-color:#bfe9cf;}
 .lv-card.locked{opacity:.5;filter:grayscale(.5);}
@@ -1322,14 +1322,21 @@ async function serverLogin(user, pw){
     return {ok:false,msg:r.msg||'登录失败'};
   }catch(e){ return {ok:false,msg:'网络错误：'+(e&&e.message||e)}; }
 }
-/* 推送当前用户全部进度到云端（server 模式）；本地模式无操作 */
-async function syncUp(){
-  const srv=serverURL(); if(!srv) return;
-  const u=sessionUser(); if(!u) return;
-  const data={}; const ts=Date.now();
-  ['records','points','rewards','levels','flash','practice'].forEach(b=>{ data[b]=getArr(ukey(b)); });
-  try{ const r=await apiFetch('/api/sync','POST',{client_ts:ts, data}); if(!r.ok) console.warn('[syncUp] 失败', r.msg); }
-  catch(e){ console.warn('[syncUp] 异常', e&&e.message||e); }
+/* 推送当前用户全部进度到云端（server 模式）；本地模式无操作。
+   串行化：recordAnswer→addPoints 等会连续触发 syncUp，并发 POST 时服务端按
+   client_ts vs updated_at 拒收"数据更全但时间戳稍早"的推送，导致云端丢数据。
+   队列保证最后一次推送携带最终数据，且其时间戳晚于前一次服务端落库时间。 */
+let _syncUpQueue=Promise.resolve();
+function syncUp(){
+  _syncUpQueue=_syncUpQueue.then(async ()=>{
+    const srv=serverURL(); if(!srv) return;
+    const u=sessionUser(); if(!u) return;
+    const data={}; const ts=Date.now();
+    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>{ data[b]=getArr(ukey(b)); });
+    try{ const r=await apiFetch('/api/sync','POST',{client_ts:ts, data}); if(!r.ok) console.warn('[syncUp] 失败', r.msg); }
+    catch(e){ console.warn('[syncUp] 异常', e&&e.message||e); }
+  });
+  return _syncUpQueue;
 }
 /* 从云端拉取当前用户进度并写回本地（server 模式）；本地模式无操作。返回是否成功 */
 async function syncDown(){
@@ -1339,7 +1346,7 @@ async function syncDown(){
     const r=await apiFetch('/api/sync','GET');
     if(!r.ok){ console.warn('[syncDown] 失败', r.msg); return false; }
     const data=r.data||{};
-    ['records','points','rewards','levels','flash','practice'].forEach(b=>{ if(data[b]!==undefined) setArr(ukey(b), data[b]); });
+    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>{ if(data[b]!==undefined) setArr(ukey(b), data[b]); });
     return true;
   }catch(e){ console.warn('[syncDown] 异常', e&&e.message||e); return false; }
 }
@@ -1347,7 +1354,7 @@ async function syncDown(){
 async function autoSync(){
   const srv=serverURL(); if(!srv) return false;
   const u=sessionUser(); if(!u) return false;
-  const bases=['records','points','rewards','levels','flash','practice'];
+  const bases=['records','points','rewards','levels','flash','practice','timed'];
   if(bases.some(b=>getArr(ukey(b)).length>0)) await syncUp();
   return await syncDown();
 }
@@ -1415,7 +1422,9 @@ function getLevelState(id){
   const all=getArr(ukey('levels')); const s=all.find(x=>x.id===id);
   return s||{cleared:false,best:0,correct:0,total:0,plays:0};
 }
-function saveLevelState(id,st){ const all=getArr(ukey('levels')).filter(x=>x.id!==id); all.push(st); setArr(ukey('levels'),all); syncUp(); }
+/* 存入的状态必须带 id 才能被 getLevelState 查回（历史版本曾丢失 id 导致模块通关状态读不回、后续模块永久锁死）；
+   顺带丢弃无 id 的历史脏数据 */
+function saveLevelState(id,st){ const all=getArr(ukey('levels')).filter(x=>x.id!==id&&x.id); all.push({...st,id}); setArr(ukey('levels'),all); syncUp(); }
 function levelUnlocked(lv,list){
   if(isDev()) return true;
   const same=list.filter(x=>x.bank===lv.bank);
@@ -1882,7 +1891,7 @@ function openModal(title,text,onOk){
 document.getElementById('btnClearAll').addEventListener('click',()=>{
   openModal('清空全部数据','此操作将删除所有练习记录、积分、奖励和复习队列，且无法恢复！确定要清空吗？',()=>{
     /* 清空当前用户的练习数据，但保留 K.del（已永久删除的题目，全局，永不恢复） */
-    ['records','points','rewards','levels','flash','practice'].forEach(b=>setArr(ukey(b),[])); syncUp();
+    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>setArr(ukey(b),[])); syncUp();
     SESSION_PLAYED={knowledge:new Set(),experiment:new Set()};
     renderAll(); toast('已清空全部数据');
   });
@@ -1939,6 +1948,9 @@ function refreshModuleState(lv){
     if(!prev.cleared){ saveLevelState(lv.id,{...prev,cleared:true}); addPoints('earn',20,'通关：'+lv.module); }
   }
 }
+/* 自愈：按各小关通关状态重算模块通关（幂等，只补一次）。修复历史 bug 期间
+   已全部通关小关但模块状态丢失的存量进度，否则下一模块仍处锁定。 */
+function healModuleStates(){ LEVELS.forEach(refreshModuleState); }
 let CURRENT_SUB=null;
 function openLevel(id){
   const lv=LEVELS.find(x=>x.id===id); if(!lv) return;
@@ -2069,14 +2081,14 @@ function bootApp(){
   if(sessionUser()){
     // 已登录：server 模式下先与云端同步（拉取其他设备的进度），再渲染，避免"只有登出再登录才同步"
     if(serverURL()){
-      autoSync().catch(e=>console.warn('[bootApp] 同步失败', e&&e.message||e)).finally(renderAll);
-    } else { renderAll(); }
+      autoSync().catch(e=>console.warn('[bootApp] 同步失败', e&&e.message||e)).finally(()=>{ healModuleStates(); renderAll(); });
+    } else { healModuleStates(); renderAll(); }
   } else { openAuth('login'); }
 }
 /* 后台自动同步：长开页面也能持续对齐云端（如另一台设备刚攒的积分）。
    进行中的计时答题（TIMED_INTERVAL 活跃）时跳过，避免打断；仅在数据确实有变化时才重渲染。 */
 (function startAutoSyncHeartbeat(){
-  const BASES=['records','points','rewards','levels','flash','practice'];
+  const BASES=['records','points','rewards','levels','flash','practice','timed'];
   const sig=()=>BASES.map(b=>JSON.stringify(getArr(ukey(b)))).join('|');
   setInterval(async ()=>{
     if(!sessionUser() || !serverURL() || TIMED_INTERVAL) return; // 未登录 / 答题进行中 → 跳过
@@ -2130,9 +2142,10 @@ async function onAuthSubmit(){
   if(!r.ok){ msg.textContent=r.msg; return; }
   closeAuth(); refreshAccountUI();
   // 云端模式：登录/注册成功后先推本地(若有)再拉云端最新，保证多端一致
-  const bases=['records','points','rewards','levels','flash','practice'];
+  const bases=['records','points','rewards','levels','flash','practice','timed'];
   if(bases.some(b=>getArr(ukey(b)).length>0)) await syncUp();
   await syncDown();
+  healModuleStates();
   renderAll();
 }
 function onAuthLogout(){
