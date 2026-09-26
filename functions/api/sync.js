@@ -22,24 +22,22 @@ export async function onRequestPost({ request, env }) {
 
   let body;
   try { body = await request.json(); } catch { return send({ ok: false, msg: '请求体不是合法 JSON' }, 400); }
-  const client_ts = Number(body.client_ts) || 0;
 
-  const cur = await env.DB.prepare('SELECT MAX(updated_at) AS m FROM user_data WHERE username = ?').bind(user).first();
-  const server_ts = cur?.m || 0;
-
-  // 仅当客户端数据比服务端新才覆盖（按 key last-write-wins）
-  if (client_ts >= server_ts) {
-    const now = Date.now();
-    for (const k of CONFIG.DATA_KEYS) {
-      if (body.data && body.data[k] !== undefined) {
-        const v = JSON.stringify(body.data[k]);
-        await env.DB.prepare(
-          'INSERT INTO user_data (username, key, value, updated_at) VALUES (?, ?, ?, ?) ' +
-          'ON CONFLICT(username, key) DO UPDATE SET value = ?, updated_at = ?'
-        ).bind(user, k, v, now, v, now).run();
-      }
+  // 总是接受覆盖（按 key last-write-wins）：客户端 syncUp 已串行化，推送到达顺序即写入顺序。
+  // 不再比较 client_ts 与服务端时间戳——那会静默拒收时钟偏慢设备的新数据，且推送时取的是当前时间，
+  // 对"旧数据晚到"本来就没有防护作用。
+  const now = Date.now();
+  const stmts = [];
+  for (const k of CONFIG.DATA_KEYS) {
+    if (body.data && body.data[k] !== undefined) {
+      const v = JSON.stringify(body.data[k]);
+      stmts.push(env.DB.prepare(
+        'INSERT INTO user_data (username, key, value, updated_at) VALUES (?, ?, ?, ?) ' +
+        'ON CONFLICT(username, key) DO UPDATE SET value = ?, updated_at = ?'
+      ).bind(user, k, v, now, v, now));
     }
   }
+  if (stmts.length) await env.DB.batch(stmts);
 
   const after = await env.DB.prepare('SELECT MAX(updated_at) AS m FROM user_data WHERE username = ?').bind(user).first();
   return send({ ok: true, updated_at: after?.m || 0 });

@@ -23,12 +23,17 @@ export function hashCred(cred, salt) {
     scrypt(cred, salt, 64, (e, buf) => (e ? rej(e) : res(buf.toString('hex')))));
 }
 
-// Bearer token -> username（过期即失效）
+// Bearer token -> username（过期即失效）。滑动续期：剩余有效期不足一半时顺延一个完整周期，
+// 活跃用户（15 天内至少同步一次）不再被强制重登；已过期的不复活。
 export async function authUser(env, authHeader) {
   const m = (authHeader || '').match(/^Bearer\s+(.+)$/i);
   if (!m) return null;
   const row = await env.DB.prepare('SELECT username, expires FROM sessions WHERE token = ?')
     .bind(m[1]).first();
   if (!row || row.expires < Date.now()) return null;
+  if (row.expires - Date.now() < CONFIG.TOKEN_TTL_MS / 2) {
+    await env.DB.prepare('UPDATE sessions SET expires = ? WHERE token = ?')
+      .bind(Date.now() + CONFIG.TOKEN_TTL_MS, m[1]).run();
+  }
   return row.username;
 }

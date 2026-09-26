@@ -472,7 +472,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
     </div>
     <div id="authForm">
       <div class="form-row" style="margin-bottom:12px;">
-        <div><label>用户名</label><input id="authUser" placeholder="字母/数字/中文 2-20 位" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;outline:none;"></div>
+        <div><label>用户名</label><input id="authUser" placeholder="3-20 位字母/数字/下划线" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;outline:none;"></div>
       </div>
       <div class="form-row" style="margin-bottom:14px;">
         <div><label>密码</label><input id="authPw" type="password" placeholder="密码" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;outline:none;"></div>
@@ -527,14 +527,22 @@ function pwHash(pw, salt){ const h1=cyrb53(pw, 0x9e3779b9 ^ (salt||'').length); 
 /* 当前用户的数据键：未登录时用 __none__ 占位（仅兜底，正常必有登录态） */
 function ukey(base){ const u=sessionUser(); return UK_PREFIX + (u||'__none__') + '_' + base; }
 /* 本地账户/本地注册登录已移除：认证强制走服务器（见 serverRegister/serverLogin），服务器为唯一数据源 */
-function logout(){ setSession(null); setToken(''); }
+/* 登出/过期时清空当前用户的内存数据（须在 setSession 前调用，ukey 依赖当前会话用户） */
+function clearLocalUserData(){ ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>setArr(ukey(b),[])); }
+function logout(){
+  /* 尽力吊销服务端会话（须在清除本地 token 前发起）；失败不阻塞本地登出 */
+  if(getToken() && serverURL()) apiFetch('/api/logout','POST').catch(()=>{});
+  clearLocalUserData(); setSession(null); setToken('');
+}
 /* ===== 云端同步（阶段1 实现） =====
    模式：DEFAULT_SERVER_URL 为空 = 纯本地（阶段0 行为，不破坏）；非空 = 走自建后端。
    生产默认用 location.origin（同页同源的绝对地址）：既开启云端同步，又因与页面同协议/同域
    而避免混合内容（HTTPS 页不再去请求 HTTP 接口，杜绝之前的 Load failed）。本地测试仍可加
    ?server=http://127.0.0.1:3000 覆盖。安全：密码经 cyrb53→cred 过网；服务端 scrypt 加盐哈希；
    Bearer token 30天。 */
-const DEFAULT_SERVER_URL = location.origin;
+/* file:// 直开时 location.origin 是字符串 "null"（非 http 协议），登录请求会打到 "null/api/..."；
+   此时自动退回纯本地模式（serverURL() 返回空串，同步/登录均不发起网络请求） */
+const DEFAULT_SERVER_URL = location.origin.startsWith('http') ? location.origin : '';
 const SERVER_USER_RE = /^[a-zA-Z0-9_]{3,20}$/;
 function serverURL(){
   try{ const q=new URLSearchParams(location.search).get('server'); if(q) return q.replace(/\/$/,''); }catch(e){}
@@ -550,9 +558,7 @@ let _authExpiredHandled=false;
 function handleAuthExpired(){
   if(!sessionUser() || _authExpiredHandled) return;
   _authExpiredHandled=true;
-  /* 先以当前用户身份清空本地内存数据（防止残留数据串到下一个登录的账户），再登出 */
-  ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>setArr(ukey(b),[]));
-  logout();
+  logout(); /* logout 内部先清空当前用户的内存数据，防止残留数据串到下一个登录的账户 */
   renderAll();
   if(TIMED_INTERVAL){ toast('登录已过期，本轮成绩不会同步；结束后请重新登录'); return; }
   openAuth('login');
@@ -572,6 +578,7 @@ async function serverRegister(user, pw){
   if(!SERVER_USER_RE.test(user)) return {ok:false,msg:'用户名需 3-20 位字母/数字/下划线'};
   try{
     const r=await apiFetch('/api/register','POST',{user, cred:credOf(pw)});
+    if(r.code===0) return {ok:false,msg:'本地模式：无后端，无法注册'};
     if(!r.ok) return {ok:false,msg:r.msg||'注册失败'};
     setToken(r.token); setSession(user); return {ok:true};
   }catch(e){ return {ok:false,msg:'网络错误：'+(e&&e.message||e)}; }
@@ -582,18 +589,14 @@ async function serverLogin(user, pw){
   try{
     let r=await apiFetch('/api/login','POST',{user, cred});
     if(r.ok){ setToken(r.token); setSession(user); return {ok:true}; }
-    if(r.code===404){ // 未知用户 → 首次以 server 登录自动建账户（后端自动注册，无需重输密码）
-      const r2=await apiFetch('/api/register','POST',{user, cred});
-      if(!r2.ok) return {ok:false,msg:r2.msg||'自动注册失败'};
-      setToken(r2.token); setSession(user); return {ok:true};
-    }
+    if(r.code===0) return {ok:false,msg:'本地模式：无后端，无法登录'};
+    if(r.code===404) return {ok:false, code:404, msg:'用户不存在'}; // 不再静默自动注册：打错用户名会误建新号
     return {ok:false,msg:r.msg||'登录失败'};
   }catch(e){ return {ok:false,msg:'网络错误：'+(e&&e.message||e)}; }
 }
 /* 推送当前用户全部进度到云端（server 模式）；本地模式无操作。
-   串行化：recordAnswer→addPoints 等会连续触发 syncUp，并发 POST 时服务端按
-   client_ts vs updated_at 拒收"数据更全但时间戳稍早"的推送，导致云端丢数据。
-   队列保证最后一次推送携带最终数据，且其时间戳晚于前一次服务端落库时间。 */
+   串行化：recordAnswer→addPoints 等会连续触发 syncUp，并发 POST 会乱序到达，
+   可能出现"旧推送后到覆盖新推送"；队列保证按序推送，最终以最后一次（数据最全）为准。 */
 let _syncUpQueue=Promise.resolve();
 function syncUp(){
   _syncUpQueue=_syncUpQueue.then(async ()=>{
@@ -682,6 +685,7 @@ function deleteQuestion(bank,id){
   if(i>=0) arr.splice(i,1);
   const ds=getArr(K.del); if(!ds.includes(id)) ds.push(id); setArr(K.del,ds);
   rebuildAll();
+  if(CURRENT_SUB) CURRENT_SUB = LEVELS.find(x=>x.id===CURRENT_SUB.id) || null; /* rebuildAll 重建了 LEVELS，刷新引用避免沿用含已删题的旧关卡 */
   setArr(ukey('records'), getArr(ukey('records')).filter(r=>r.qid!==id)); syncUp();
   toast('已永久删除该题目');
   renderAll();
@@ -807,8 +811,6 @@ function renderMineWrong(){
   const box=document.getElementById('mineWrongList');
   const bank=WRONG_BANK;
   const recs=getArr(ukey('records')).filter(r=>!r.correct);
-  const seen={}; recs.forEach(r=>{ if(!seen[r.qid]||(bank!=='all'&&seen[r.qid].bank===bank)) seen[r.qid]=r; });
-  // 简化筛选：先全收集去重，再按 bank 过滤
   const allSeen={}; recs.forEach(r=>{ if(!allSeen[r.qid]) allSeen[r.qid]=r; });
   const qids=Object.keys(allSeen).filter(qid=>{
     if(bank==='all') return true;
@@ -986,13 +988,15 @@ function setDur(d){
 }
 function renderTimedSetup(){
   const range=document.getElementById('durRange');
-  if(range){ range.min=DUR_MIN; range.max=DUR_MAX; range.step=1; range.value=DUR_DEFAULT; }
-  setDur(DUR_DEFAULT);
+  if(range){ range.min=DUR_MIN; range.max=DUR_MAX; range.step=1; }
+  setDur(TIMED_DURATION); /* 保留用户已选时长，不再被全局重渲染重置回默认值 */
 }
 function pickRandomAll(){
   const all=[...(BANK.knowledge||[]), ...(BANK.experiment||[])];
   if(!all.length) return null;
-  return all[Math.floor(Math.random()*all.length)];
+  let avail=all.filter(q=>!SESSION_PLAYED.knowledge.has(q.id)&&!SESSION_PLAYED.experiment.has(q.id));
+  if(!avail.length){ SESSION_PLAYED={knowledge:new Set(),experiment:new Set()}; avail=all; }
+  return avail[Math.floor(Math.random()*avail.length)];
 }
 function startTimed(dur){
   TIMED={duration:dur,endAt:Date.now()+dur*60000,count:0,correct:0,currentQ:null};
@@ -1123,7 +1127,7 @@ document.body.addEventListener('click',e=>{
   if(t.id==='timedStart'){ startTimed(TIMED_DURATION); return; }
   if(t.id==='timedGiveUp'){
     if(!TIMED) return;
-    if(confirm('确定结束本轮？已答题数将保存到记录。')) endTimed();
+    openModal('结束本轮','确定结束本轮？已答题数将保存到记录。',()=>endTimed());
     return;
   }
   if(t.id==='timedAgain'){
@@ -1351,7 +1355,7 @@ function bootApp(){
     if(serverURL()){
       autoSync().catch(e=>console.warn('[bootApp] 同步失败', e&&e.message||e)).finally(()=>{ healModuleStates(); renderAll(); });
     } else { healModuleStates(); renderAll(); }
-  } else { openAuth('login'); }
+  } else { renderAll(); openAuth('login'); } /* 未登录也渲染空状态，避免关闭登录框后整页空白 */
 }
 /* 后台自动同步：长开页面也能持续对齐云端（如另一台设备刚攒的积分）。
    进行中的计时答题（TIMED_INTERVAL 活跃）时跳过，避免打断；仅在数据确实有变化时才重渲染。 */
@@ -1407,7 +1411,10 @@ async function onAuthSubmit(){
   } else {
     r = await serverLogin(u,p);
   }
-  if(!r.ok){ msg.textContent=r.msg; return; }
+  if(!r.ok){
+    msg.textContent = (r.code===404) ? '用户不存在：请检查用户名，或点击下方「去注册」创建账户' : r.msg;
+    return;
+  }
   _authExpiredHandled=false; // 重新登录成功，过期处理守卫复位
   closeAuth(); refreshAccountUI();
   // 云端模式：登录/注册成功后先推本地(若有)再拉云端最新，保证多端一致
@@ -1418,14 +1425,16 @@ async function onAuthSubmit(){
   renderAll();
 }
 function onAuthLogout(){
-  logout(); refreshAccountUI();
+  logout(); renderAll();
   openAuth('login');
 }
 function onAuthSwitchUser(){
-  logout(); openAuth('login');
+  logout(); renderAll();
+  openAuth('login');
 }
 // 账户卡按钮监听已移至 body 事件委托外的 accountCardBtn 绑定（避免重复）
 document.getElementById('authClose').addEventListener('click',closeAuth);
+['authUser','authPw','authPw2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') onAuthSubmit(); }); });
 document.getElementById('authSubmit').addEventListener('click',onAuthSubmit);
 document.getElementById('authSwitch').addEventListener('click',()=>{ showAuthForm(authMode==='register'?'login':'register'); });
 document.getElementById('authLogout').addEventListener('click',()=>{ closeAuth(); onAuthLogout(); });
