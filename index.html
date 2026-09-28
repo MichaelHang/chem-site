@@ -125,7 +125,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .lv-progress{font-size:13px;color:var(--muted);margin-bottom:10px;}
 .bar{height:12px;background:#e3eaf2;border-radius:20px;overflow:hidden;}
 .bar > i{display:block;height:100%;background:linear-gradient(90deg,#2b7de9,#5aa0ff);border-radius:20px;transition:width .5s var(--spring);}
-/* rewards */
+/* 列表项（积分明细等） */
 .item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:10px;}
 .item .top{display:flex;align-items:flex-start;gap:10px;}
 .item .title{font-weight:600;font-size:15px;flex:1;}
@@ -511,7 +511,7 @@ function buildBank(){
 }
 const MODULES = {knowledge:['必修一·基本概念','必修二','选择性必修1·反应原理','选择性必修2·物质结构与性质','选择性必修3·有机化学'], experiment:['必修一','必修二','选择性必修1','选择性必修2','选择性必修3']};
 /* ===== 存储 ===== */
-const K = {records:'records', points:'points', rewards:'rewards', levels:'levels', del:'wb_chem_deleted', flash:'flash', practice:'practice', dev:'wb_chem_dev'};
+const K = {records:'records', points:'points', levels:'levels', del:'wb_chem_deleted'};
 const MEM={}; // 应用数据内存存储；服务器为唯一数据源，刷新即从云端重新拉取
 function getArr(key){
   if(key===K.del){ try{ return JSON.parse(localStorage.getItem(key))||[]; }catch(e){ return []; } } // 全局"已删题目"集合须跨刷新保留，例外沿用 localStorage
@@ -528,7 +528,7 @@ function pwHash(pw, salt){ const h1=cyrb53(pw, 0x9e3779b9 ^ (salt||'').length); 
 function ukey(base){ const u=sessionUser(); return UK_PREFIX + (u||'__none__') + '_' + base; }
 /* 本地账户/本地注册登录已移除：认证强制走服务器（见 serverRegister/serverLogin），服务器为唯一数据源 */
 /* 登出/过期时清空当前用户的内存数据（须在 setSession 前调用，ukey 依赖当前会话用户） */
-function clearLocalUserData(){ ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>setArr(ukey(b),[])); }
+function clearLocalUserData(){ ['records','points','levels','timed'].forEach(b=>setArr(ukey(b),[])); }
 function logout(){
   /* 尽力吊销服务端会话（须在清除本地 token 前发起）；失败不阻塞本地登出 */
   if(getToken() && serverURL()) apiFetch('/api/logout','POST').catch(()=>{});
@@ -603,7 +603,7 @@ function syncUp(){
     const srv=serverURL(); if(!srv) return;
     const u=sessionUser(); if(!u) return;
     const data={}; const ts=Date.now();
-    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>{ data[b]=getArr(ukey(b)); });
+    ['records','points','levels','timed'].forEach(b=>{ data[b]=getArr(ukey(b)); });
     try{ const r=await apiFetch('/api/sync','POST',{client_ts:ts, data}); if(!r.ok) console.warn('[syncUp] 失败', r.msg); }
     catch(e){ console.warn('[syncUp] 异常', e&&e.message||e); }
   });
@@ -617,7 +617,7 @@ async function syncDown(){
     const r=await apiFetch('/api/sync','GET');
     if(!r.ok){ console.warn('[syncDown] 失败', r.msg); return false; }
     const data=r.data||{};
-    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>{ if(data[b]!==undefined) setArr(ukey(b), data[b]); });
+    ['records','points','levels','timed'].forEach(b=>{ if(data[b]!==undefined) setArr(ukey(b), data[b]); });
     return true;
   }catch(e){ console.warn('[syncDown] 异常', e&&e.message||e); return false; }
 }
@@ -625,7 +625,7 @@ async function syncDown(){
 async function autoSync(){
   const srv=serverURL(); if(!srv) return false;
   const u=sessionUser(); if(!u) return false;
-  const bases=['records','points','rewards','levels','flash','practice','timed'];
+  const bases=['records','points','levels','timed'];
   if(bases.some(b=>getArr(ukey(b)).length>0)) await syncUp();
   return await syncDown();
 }
@@ -642,7 +642,6 @@ function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(
 function initDemo(){
   setArr(ukey('records'),getArr(ukey('records')).filter(x=>!x.isDemo));
   setArr(ukey('points'),getArr(ukey('points')).filter(x=>!x.isDemo));
-  setArr(ukey('rewards'),getArr(ukey('rewards')).filter(x=>!x.isDemo));
 }
 
 /* ===== 积分 ===== */
@@ -1163,7 +1162,7 @@ function openModal(title,text,onOk){
 document.getElementById('btnClearAll').addEventListener('click',()=>{
   openModal('清空全部数据','此操作将删除所有练习记录、积分、奖励和复习队列，且无法恢复！确定要清空吗？',()=>{
     /* 清空当前用户的练习数据，但保留 K.del（已永久删除的题目，全局，永不恢复） */
-    ['records','points','rewards','levels','flash','practice','timed'].forEach(b=>setArr(ukey(b),[])); syncUp();
+    ['records','points','levels','timed'].forEach(b=>setArr(ukey(b),[])); syncUp();
     SESSION_PLAYED={knowledge:new Set(),experiment:new Set()};
     renderAll(); toast('已清空全部数据');
   });
@@ -1360,7 +1359,7 @@ function bootApp(){
 /* 后台自动同步：长开页面也能持续对齐云端（如另一台设备刚攒的积分）。
    进行中的计时答题（TIMED_INTERVAL 活跃）时跳过，避免打断；仅在数据确实有变化时才重渲染。 */
 (function startAutoSyncHeartbeat(){
-  const BASES=['records','points','rewards','levels','flash','practice','timed'];
+  const BASES=['records','points','levels','timed'];
   const sig=()=>BASES.map(b=>JSON.stringify(getArr(ukey(b)))).join('|');
   setInterval(async ()=>{
     if(!sessionUser() || !serverURL() || TIMED_INTERVAL) return; // 未登录 / 答题进行中 → 跳过
@@ -1418,7 +1417,7 @@ async function onAuthSubmit(){
   _authExpiredHandled=false; // 重新登录成功，过期处理守卫复位
   closeAuth(); refreshAccountUI();
   // 云端模式：登录/注册成功后先推本地(若有)再拉云端最新，保证多端一致
-  const bases=['records','points','rewards','levels','flash','practice','timed'];
+  const bases=['records','points','levels','timed'];
   if(bases.some(b=>getArr(ukey(b)).length>0)) await syncUp();
   await syncDown();
   healModuleStates();

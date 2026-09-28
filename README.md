@@ -8,7 +8,7 @@
 - **计时刷题**：1~10 分钟限时挑战，每个时长保留 TOP5 成绩记录
 - **错题本**：自动收集错题，支持「全部 / 知识点 / 实验」筛选和重练
 - **积分与段位**：首次答对 +5 分、通关 +20 分（重复答对不重复给分）；按掌握度划分段位（青铜→钻石）
-- **云端同步**：注册 / 登录后多端同步（records / points / levels / rewards / flash / practice / timed 七类数据，按时间戳 last-write-wins）
+- **云端同步**：注册 / 登录后多端同步（records / points / levels / timed 四类数据，按 key last-write-wins）
 
 ## 本地开发
 
