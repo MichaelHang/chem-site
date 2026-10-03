@@ -79,7 +79,6 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .wrong-item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:10px;border-left:4px solid var(--red);}
 .wrong-item .w-title{font-weight:600;font-size:14px;}
 .wrong-item .w-meta{font-size:12px;color:var(--muted);margin:4px 0;}
-.wrong-item .w-ans{font-size:13px;color:#465562;background:var(--bg);padding:8px 10px;border-radius:8px;margin-top:6px;}
 .wrong-item .acts{margin-top:10px;}
 .wrong-item .acts button{border:1px solid var(--primary);color:var(--primary);border-radius:8px;padding:8px 12px;font-size:13px;min-height:40px;}
 /* stats */
@@ -814,7 +813,6 @@ function renderMineWrong(){
       (WRONG_STATUS==='pending'?'没有待攻克的错题，太棒了！':'还没有已掌握的错题（先做错、再答对就会出现在这里）')+'</div>';
     return;
   }
-  const letters=['A','B','C','D'];
   const pageQids=qids.slice((WRONG_PAGE-1)*WRONG_PAGE_SIZE, WRONG_PAGE*WRONG_PAGE_SIZE);
   box.innerHTML=pageQids.map(qid=>{
     const r=last[qid];
@@ -822,7 +820,6 @@ function renderMineWrong(){
     return `<div class="wrong-item">
       <div class="w-title">${esc(bq.q)}</div>
       <div class="w-meta"><span style="background:${r.bank==='knowledge'?'#eef5ff':'#fff3e6'};color:${r.bank==='knowledge'?'var(--primary)':'#f39c12'};font-size:11px;padding:1px 7px;border-radius:20px;margin-right:6px;">${r.bank==='knowledge'?'知识点':'实验'}</span>${esc(bq.module)}</div>
-      <div class="w-ans">正确答案：${letters[bq.answer]}. ${esc(bq.options[bq.answer])}</div>
       <div class="acts"><button class="act-do" data-review="${r.bank}" data-qid="${qid}">去练习</button></div>
     </div>`;
   }).join('')+
