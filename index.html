@@ -29,18 +29,6 @@ header{position:fixed;top:0;left:0;right:0;height:56px;z-index:30;background:var
 .today{background:linear-gradient(135deg,#fff,#fbfdff);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px;box-shadow:var(--shadow);}
 .today h2{margin:0 0 10px;font-size:16px;display:flex;align-items:center;gap:7px;}
 .today h2 svg{width:18px;height:18px;color:var(--primary);}
-.today .empty{color:var(--muted);font-size:14px;padding:6px 0;}
-.today-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:#fff;border:1px solid var(--line);margin-bottom:8px;}
-.today-item:last-child{margin-bottom:0;}
-.today-item .tag{font-size:12px;padding:2px 8px;border-radius:20px;background:var(--bg);color:var(--muted);white-space:nowrap;}
-.today-item.overdue{border-color:#f5c6c0;background:#fff5f3;}
-.today-item.overdue .tag{background:var(--red);color:#fff;}
-.today-item.soon .tag{background:var(--orange);color:#fff;}
-.today-item .ti-main{flex:1;min-width:0;}
-.today-item .ti-title{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.today-item.overdue .ti-title{color:var(--red);}
-.today-item .ti-sub{font-size:12px;color:var(--muted);}
-.today-item .do-btn{background:var(--primary);color:#fff;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:600;white-space:nowrap;min-height:40px;}
 .prog-grid{display:flex;gap:14px;flex-wrap:wrap;}
 .prog-rank{flex:1;min-width:200px;background:linear-gradient(135deg,#eef5ff,#f7faff);border:1px solid #d6e6ff;border-radius:12px;padding:14px;}
 .prog-rank .rank-name{font-size:20px;font-weight:800;color:var(--primary-dark);letter-spacing:-.01em;}
@@ -49,10 +37,6 @@ header{position:fixed;top:0;left:0;right:0;height:56px;z-index:30;background:var
 .prog-stats .ps{display:flex;flex-direction:column;align-items:center;flex:1;}
 .prog-stats .ps span{font-size:24px;font-weight:800;color:var(--primary);letter-spacing:-.01em;}
 .prog-stats .ps small{font-size:12px;color:var(--muted);margin-top:3px;}
-.prog-todo{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
-.todo-head{font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
-.todo-head b{color:var(--red);}
-.todo-hint{font-size:12px;color:var(--muted);font-weight:400;}
 .tabbar{position:sticky;top:56px;z-index:20;background:rgba(245,247,250,.78);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);display:flex;gap:6px;padding:8px 0;margin-bottom:14px;}
 .tabbar button{flex:1;background:#fff;border:1px solid var(--line);border-radius:11px;padding:11px 4px;font-size:14px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px;min-height:56px;transition:transform .12s var(--spring),background .18s,color .18s,border-color .18s;will-change:transform;}
 .tabbar button:active{transform:scale(.95);}
@@ -72,8 +56,8 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .btn-ghost{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--text);min-height:44px;}
 .btn-danger{background:#fff;border:1px solid var(--red);color:var(--red);border-radius:10px;padding:11px 14px;font-size:14px;min-height:44px;}
 /* Apple：即时按压反馈（pointer-down 即响应）+ 弹簧缓动 */
-.btn-primary,.btn-ghost,.btn-danger,.lv-go,.icon-btn,.dur-step,.opt,.wrong-item .acts button,.item .acts button,.account-card .ac-btn,.modal .row button,.today-item .do-btn{transition:transform .12s var(--spring),background .15s,box-shadow .15s,color .15s,border-color .15s;will-change:transform;}
-.btn-primary:active,.btn-ghost:active,.btn-danger:active,.lv-go:active,.icon-btn:active,.dur-step:active,.opt:active,.wrong-item .acts button:active,.item .acts button:active,.account-card .ac-btn:active,.modal .row button:active,.today-item .do-btn:active{transform:scale(.97);}
+.btn-primary,.btn-ghost,.btn-danger,.lv-go,.icon-btn,.dur-step,.opt,.wrong-item .acts button,.account-card .ac-btn,.modal .row button{transition:transform .12s var(--spring),background .15s,box-shadow .15s,color .15s,border-color .15s;will-change:transform;}
+.btn-primary:active,.btn-ghost:active,.btn-danger:active,.lv-go:active,.icon-btn:active,.dur-step:active,.opt:active,.wrong-item .acts button:active,.account-card .ac-btn:active,.modal .row button:active{transform:scale(.97);}
 /* quiz */
 .quiz-tip{color:var(--muted);text-align:center;padding:24px 0;font-size:14px;}
 .quiz-q{font-weight:600;font-size:15px;margin-bottom:4px;}
@@ -218,7 +202,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 /* ===== Apple：减弱动态效果（无障碍） ===== */
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important;}
-  .modal-mask.show .modal,.section.active,.tabbar button:active,.btn-primary:active,.btn-ghost:active,.btn-danger:active,.lv-go:active,.icon-btn:active,.dur-step:active,.opt:active,.wrong-item .acts button:active,.item .acts button:active,.account-card .ac-btn:active,.modal .row button:active,.today-item .do-btn:active{transform:none!important;}
+  .modal-mask.show .modal,.section.active,.tabbar button:active,.btn-primary:active,.btn-ghost:active,.btn-danger:active,.lv-go:active,.icon-btn:active,.dur-step:active,.opt:active,.wrong-item .acts button:active,.account-card .ac-btn:active,.modal .row button:active{transform:none!important;}
   header,.tabbar{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(255,255,255,.96);}
 }
 </style>
@@ -391,10 +375,6 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
           <div class="ps"><span id="progStreak">0</span><small>连续天数</small></div>
           <div class="ps"><span id="progToday">0</span><small>今日已练</small></div>
         </div>
-      </div>
-      <div class="prog-todo">
-        <div class="todo-head">待攻克错题 <b id="progWrongN">0</b><span class="todo-hint">随时可重做</span></div>
-        <div id="todayList"></div>
       </div>
     </div>
 
@@ -873,22 +853,6 @@ function renderToday(){
   document.getElementById('progScore').textContent=b;
   document.getElementById('progStreak').textContent=computeStreak();
   document.getElementById('progToday').textContent=getArr(ukey('records')).filter(r=>r.date===todayStr()).length;
-  /* 待攻克错题：与错题本同一套判定（最近一次仍答错），最多展示 20 条 */
-  const {last,lastIdx,everWrong}=wrongBookData();
-  const pending=[...everWrong].filter(qid=>!last[qid].correct).sort((a,b)=>lastIdx[b]-lastIdx[a]);
-  document.getElementById('progWrongN').textContent=pending.length;
-  const box=document.getElementById('todayList');
-  if(!pending.length){ box.innerHTML='<div class="empty">没有待攻克的错题，太棒了！</div>'; return; }
-  const MAX_SHOW=20;
-  box.innerHTML=pending.slice(0,MAX_SHOW).map(qid=>{
-    const r=last[qid];
-    const q=BANK[r.bank].find(x=>x.id===qid); if(!q) return '';
-    return `<div class="today-item">
-      <span class="tag">${r.bank==='knowledge'?'知识点':'实验'}</span>
-      <div class="ti-main"><div class="ti-title">${esc(q.q)}</div><div class="ti-sub">${esc(q.module)}</div></div>
-      <button class="do-btn" data-review="${r.bank}" data-qid="${qid}">去练习</button>
-    </div>`;
-  }).join('')+(pending.length>MAX_SHOW?`<div class="empty" style="text-align:center;">还有 ${pending.length-MAX_SHOW} 题未展示 · 可在「错题」页中查看</div>`:'');
 }
 
 /* ===== 看板 ===== */
@@ -1083,10 +1047,16 @@ function submitTimedAnswer(chosen){
 function endTimed(){
   if(!TIMED) return;
   if(TIMED_INTERVAL){ clearInterval(TIMED_INTERVAL); TIMED_INTERVAL=null; }
-  // 落库
+  // 落库：每个时长只保留 TOP 10（按答题数、平局比正确数），成绩榜语义不变且数据有硬上限
   const recs=getArr(ukey('timed'));
   recs.push({id:uid(), duration:TIMED.duration, count:TIMED.count, correct:TIMED.correct, date:todayStr()});
-  setArr(ukey('timed'), recs);
+  const keep={};
+  recs.forEach(r=>{ (keep[r.duration]=keep[r.duration]||[]).push(r); });
+  const pruned=[];
+  Object.keys(keep).forEach(d=>{
+    keep[d].sort((a,b)=>b.count-a.count || b.correct-a.correct).slice(0,10).forEach(r=>pruned.push(r));
+  });
+  setArr(ukey('timed'), pruned);
   syncUp();
   // 切到结果
   document.getElementById('timedActive').style.display='none';
