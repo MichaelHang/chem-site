@@ -126,13 +126,6 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .lv-progress{font-size:13px;color:var(--muted);margin-bottom:10px;}
 .bar{height:12px;background:#e3eaf2;border-radius:20px;overflow:hidden;}
 .bar > i{display:block;height:100%;background:linear-gradient(90deg,#2b7de9,#5aa0ff);border-radius:20px;transition:width .5s var(--spring);}
-/* 列表项（积分明细等） */
-.item{background:#fff;border:1px solid var(--line);border-radius:12px;padding:13px;margin-bottom:10px;}
-.item .top{display:flex;align-items:flex-start;gap:10px;}
-.item .title{font-weight:600;font-size:15px;flex:1;}
-.item .cat{font-size:12px;color:var(--primary);background:#eef5ff;padding:2px 8px;border-radius:20px;white-space:nowrap;}
-.item .acts{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;}
-.item .acts button{border-radius:8px;padding:8px 11px;font-size:13px;min-height:40px;border:1px solid var(--line);background:#fff;}
 .act-do{border-color:var(--primary)!important;color:var(--primary)!important;}
 .act-del{border-color:var(--red)!important;color:var(--red)!important;}
 /* notice/modal/toast */
@@ -216,6 +209,11 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .wrong-tabs{display:flex;gap:6px;margin-bottom:10px;}
 .wrong-tab{flex:1;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 4px;font-size:13px;font-weight:600;color:var(--muted);text-align:center;}
 .wrong-tab.active{color:var(--primary);border-color:var(--primary);background:#f0f6ff;}
+/* 翻页器 */
+.wrong-pager{display:flex;align-items:center;justify-content:center;gap:14px;padding:12px 0 2px;}
+.wrong-pager button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 16px;font-size:13px;color:var(--text);min-height:38px;}
+.wrong-pager button:disabled{opacity:.4;cursor:default;}
+.wrong-pager .pg-info{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
 /* ===== 背诵卡 ===== */
 /* ===== Apple：减弱动态效果（无障碍） ===== */
 @media (prefers-reduced-motion: reduce){
@@ -245,6 +243,11 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
     <button data-tab="timed">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       计时
+    </button>
+    <button data-tab="wrong" style="position:relative;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      错题
+      <b id="wrongTabBadge" style="display:none;position:absolute;top:4px;right:14%;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;">0</b>
     </button>
     <button data-tab="mine">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
@@ -318,6 +321,33 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
     </div>
   </section>
 
+  <!-- 错题本 -->
+  <section class="section" id="sec-wrong">
+    <!-- 练习错题区（隐藏，data-review/redo 时显示） -->
+    <div class="card" id="mineQuizCard" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <h3 style="margin:0;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          练习
+        </h3>
+        <button class="btn-ghost" id="mineQuizClose" style="padding:8px 14px;font-size:13px;">完成</button>
+      </div>
+      <div id="mineQuiz"></div>
+    </div>
+
+    <div class="card">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        错题本
+      </h3>
+      <div class="wrong-tabs" id="wrongStatusTabs">
+        <div class="wrong-tab active" data-wstatus="pending">待攻克</div>
+        <div class="wrong-tab" data-wstatus="mastered">已掌握</div>
+      </div>
+      <div id="mineWrongList"></div>
+    </div>
+  </section>
+
   <!-- 我的 -->
   <section class="section" id="sec-mine">
     <!-- 账户卡 -->
@@ -368,20 +398,6 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
       </div>
     </div>
 
-    <!-- 错题本（合并：知识点+实验） -->
-    <div class="card">
-      <h3>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-        错题本
-      </h3>
-      <div class="wrong-tabs" id="wrongTabs">
-        <div class="wrong-tab active" data-wbank="all">全部</div>
-        <div class="wrong-tab" data-wbank="knowledge">知识点</div>
-        <div class="wrong-tab" data-wbank="experiment">实验</div>
-      </div>
-      <div id="mineWrongList"></div>
-    </div>
-
     <div class="card">
       <h3>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 13.5 7 22l5-3 5 3-1.5-8.5"/></svg>
@@ -404,26 +420,6 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
         <div id="pieChart"></div>
         <div class="chart-legend" id="pieLegend"></div>
       </div>
-    </div>
-
-    <div class="card">
-      <h3>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
-        积分明细
-      </h3>
-      <div id="pointsList"></div>
-    </div>
-
-    <!-- 练习错题区（隐藏，data-review/redo 时显示） -->
-    <div class="card" id="mineQuizCard" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <h3 style="margin:0;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          练习
-        </h3>
-        <button class="btn-ghost" id="mineQuizClose" style="padding:8px 14px;font-size:13px;">完成</button>
-      </div>
-      <div id="mineQuiz"></div>
     </div>
 
     <div class="footer-tools">
@@ -570,7 +566,7 @@ async function apiFetch(pathname, method, body){
   const headers={'Content-Type':'application/json'}; const tk=getToken(); if(tk) headers['Authorization']='Bearer '+tk;
   const opt={method, headers}; if(body) opt.body=JSON.stringify(body);
   const resp=await fetch(base+pathname, opt); let data={};
-  try{ data=await resp.json(); }catch(e){}
+  try{ data=await resp.json(); }catch(e){ if(!resp.ok) data={msg:'服务未响应（当前地址没有后端，完整功能需部署环境或 wrangler 本地服务）'}; }
   if(resp.status===401 && pathname.startsWith('/api/sync')) handleAuthExpired();
   return Object.assign({code:resp.status, ok:resp.status>=200&&resp.status<300}, data);
 }
@@ -805,21 +801,43 @@ function closeReviewQuiz(){
   renderAll();
 }
 
-/* ===== 错题本（合并：知识点+实验，支持筛选） ===== */
-let WRONG_BANK='all';
+/* ===== 错题本（知识点+实验合并展示，状态分组 + 翻页） ===== */
+let WRONG_STATUS='pending', WRONG_PAGE=1;
+const WRONG_PAGE_SIZE=10;
+/* 按答题记录推导错题状态：everWrong=答错过一次以上的题集合；last/lastIdx=每题最近一次记录及其序号。
+   状态判定以"最近一次作答"为准：最近答错（或从未答对）→ 待攻克，最近答对 → 已掌握。 */
+function wrongBookData(){
+  const recs=getArr(ukey('records'));
+  const last={}, lastIdx={}; const everWrong=new Set();
+  recs.forEach((r,i)=>{ last[r.qid]=r; lastIdx[r.qid]=i; if(!r.correct) everWrong.add(r.qid); });
+  return {last,lastIdx,everWrong};
+}
 function renderMineWrong(){
   const box=document.getElementById('mineWrongList');
-  const bank=WRONG_BANK;
-  const recs=getArr(ukey('records')).filter(r=>!r.correct);
-  const allSeen={}; recs.forEach(r=>{ if(!allSeen[r.qid]) allSeen[r.qid]=r; });
-  const qids=Object.keys(allSeen).filter(qid=>{
-    if(bank==='all') return true;
-    return allSeen[qid].bank===bank;
-  });
-  if(!qids.length){ box.innerHTML='<div style="color:var(--muted);font-size:14px;text-align:center;padding:8px 0;">还没有错题，继续保持！</div>'; return; }
+  const {last,lastIdx,everWrong}=wrongBookData();
+  /* 更新状态 tab 上的计数 + 底部 tab 角标（待攻克数） */
+  let cntPending=0,cntMastered=0;
+  everWrong.forEach(qid=>{ if(last[qid].correct) cntMastered++; else cntPending++; });
+  const tabs=document.querySelectorAll('#wrongStatusTabs .wrong-tab');
+  tabs[0].textContent='待攻克 '+cntPending;
+  tabs[1].textContent='已掌握 '+cntMastered;
+  const badge=document.getElementById('wrongTabBadge');
+  if(badge){ badge.textContent=cntPending; badge.style.display=cntPending?'':'none'; }
+  /* 过滤：状态分组，按最近作答时间倒序 */
+  const qids=[...everWrong].filter(qid=> WRONG_STATUS==='mastered' ? last[qid].correct : !last[qid].correct)
+    .sort((a,b)=>lastIdx[b]-lastIdx[a]);
+  const totalPages=Math.max(1,Math.ceil(qids.length/WRONG_PAGE_SIZE));
+  if(WRONG_PAGE>totalPages) WRONG_PAGE=totalPages;
+  if(WRONG_PAGE<1) WRONG_PAGE=1;
+  if(!qids.length){
+    box.innerHTML='<div style="color:var(--muted);font-size:14px;text-align:center;padding:8px 0;">'+
+      (WRONG_STATUS==='pending'?'没有待攻克的错题，太棒了！':'还没有已掌握的错题（先做错、再答对就会出现在这里）')+'</div>';
+    return;
+  }
   const letters=['A','B','C','D'];
-  box.innerHTML=qids.map(qid=>{
-    const r=allSeen[qid];
+  const pageQids=qids.slice((WRONG_PAGE-1)*WRONG_PAGE_SIZE, WRONG_PAGE*WRONG_PAGE_SIZE);
+  box.innerHTML=pageQids.map(qid=>{
+    const r=last[qid];
     const bq=BANK[r.bank].find(x=>x.id===qid); if(!bq) return '';
     return `<div class="wrong-item">
       <div class="w-title">${esc(bq.q)}</div>
@@ -827,7 +845,12 @@ function renderMineWrong(){
       <div class="w-ans">正确答案：${letters[bq.answer]}. ${esc(bq.options[bq.answer])}</div>
       <div class="acts"><button class="act-do" data-review="${r.bank}" data-qid="${qid}">去练习</button></div>
     </div>`;
-  }).join('');
+  }).join('')+
+  (totalPages>1?`<div class="wrong-pager">
+      <button id="wpPrev" ${WRONG_PAGE<=1?'disabled':''}>上一页</button>
+      <span class="pg-info">第 ${WRONG_PAGE} / ${totalPages} 页 · 共 ${qids.length} 题</span>
+      <button id="wpNext" ${WRONG_PAGE>=totalPages?'disabled':''}>下一页</button>
+    </div>`:'');
 }
 
 /* ===== 我的进度（游戏化：记住进度，不做日程提醒） ===== */
@@ -850,22 +873,22 @@ function renderToday(){
   document.getElementById('progScore').textContent=b;
   document.getElementById('progStreak').textContent=computeStreak();
   document.getElementById('progToday').textContent=getArr(ukey('records')).filter(r=>r.date===todayStr()).length;
-  const recs=getArr(ukey('records')).filter(r=>!r.correct);
-  const seen={}; recs.forEach(r=>{ if(!seen[r.qid]) seen[r.qid]=r; });
-  const qids=Object.keys(seen);
-  document.getElementById('progWrongN').textContent=qids.length;
+  /* 待攻克错题：与错题本同一套判定（最近一次仍答错），最多展示 20 条 */
+  const {last,lastIdx,everWrong}=wrongBookData();
+  const pending=[...everWrong].filter(qid=>!last[qid].correct).sort((a,b)=>lastIdx[b]-lastIdx[a]);
+  document.getElementById('progWrongN').textContent=pending.length;
   const box=document.getElementById('todayList');
-  if(!qids.length){ box.innerHTML='<div class="empty">还没有错题，继续保持！</div>'; return; }
-  box.innerHTML=qids.map(qid=>{
-    const kq=BANK.knowledge.find(x=>x.id===qid), eq=BANK.experiment.find(x=>x.id===qid);
-    const q=kq||eq; if(!q) return '';
-    const bank=kq?'knowledge':'experiment';
+  if(!pending.length){ box.innerHTML='<div class="empty">没有待攻克的错题，太棒了！</div>'; return; }
+  const MAX_SHOW=20;
+  box.innerHTML=pending.slice(0,MAX_SHOW).map(qid=>{
+    const r=last[qid];
+    const q=BANK[r.bank].find(x=>x.id===qid); if(!q) return '';
     return `<div class="today-item">
-      <span class="tag">${bank==='knowledge'?'知识点':'实验'}</span>
+      <span class="tag">${r.bank==='knowledge'?'知识点':'实验'}</span>
       <div class="ti-main"><div class="ti-title">${esc(q.q)}</div><div class="ti-sub">${esc(q.module)}</div></div>
-      <button class="do-btn" data-review="${bank}" data-qid="${qid}">去练习</button>
+      <button class="do-btn" data-review="${r.bank}" data-qid="${qid}">去练习</button>
     </div>`;
-  }).join('');
+  }).join('')+(pending.length>MAX_SHOW?`<div class="empty" style="text-align:center;">还有 ${pending.length-MAX_SHOW} 题未展示 · 可在「错题」页中查看</div>`:'');
 }
 
 /* ===== 看板 ===== */
@@ -891,19 +914,6 @@ function pieSVG(data,size){
   return '<svg width="'+size+'" height="'+size+'">'+paths+'</svg>';
 }
 
-/* ===== 积分明细 ===== */
-function renderPoints(){
-  const ps=[...getArr(ukey('points'))].sort((a,b)=>a.date<b.date?1:-1);
-  const box=document.getElementById('pointsList');
-  if(!ps.length){ box.innerHTML='<div style="color:var(--muted);font-size:14px;">暂无积分记录</div>'; return; }
-  box.innerHTML=ps.map(p=>`
-    <div class="item" style="padding:10px 12px;">
-      <div class="top"><div class="title" style="font-size:14px;">${esc(p.reason)}</div>
-        <span class="cat" style="${p.type==='earn'?'background:#e8f9f0;color:#2ecc71;':'background:#fdecea;color:#e74c3c;'}">${p.type==='earn'?'+':'-'}${p.amount}</span></div>
-      <div class="meta">${esc(p.date)}</div>
-    </div>`).join('');
-}
-
 /* ===== 总渲染 ===== */
 function renderAll(){
   const safe=(fn,label)=>{ try{ fn(); }catch(e){ console.error('['+label+' 渲染出错]',e); } };
@@ -911,7 +921,7 @@ function renderAll(){
   safe(renderAccountCard,'账户卡');
   safe(renderToday,'我的进度');
   safe(renderMineWrong,'错题本');
-  safe(renderStats,'数据看板'); safe(renderPoints,'积分明细');
+  safe(renderStats,'数据看板');
   safe(renderLevels,'关卡地图'); safe(renderRankCard,'段位卡');
   safe(renderTimedSetup,'计时模式设置'); safe(renderTimedRecords,'刷题记录');
   refreshAccountUI();
@@ -942,7 +952,7 @@ document.body.addEventListener('click',e=>{
     const b=t.dataset.review;
     const q = pickQuestion(b, null, t.dataset.qid);
     document.getElementById('mineQuizCard').style.display='';
-    showTab('mine');
+    showTab('wrong');
     renderQuiz(b, q);
     const card=document.getElementById('mineQuizCard');
     if(card && card.scrollIntoView) setTimeout(()=>card.scrollIntoView({behavior:'smooth'}),50);
@@ -952,20 +962,22 @@ document.body.addEventListener('click',e=>{
     const b=t.dataset.redo;
     const q = pickQuestion(b, null, t.dataset.qid);
     document.getElementById('mineQuizCard').style.display='';
-    showTab('mine');
+    showTab('wrong');
     renderQuiz(b, q);
     const card=document.getElementById('mineQuizCard');
     if(card && card.scrollIntoView) setTimeout(()=>card.scrollIntoView({behavior:'smooth'}),50);
     return;
   }
-  // 错题筛选 tab
-  const wt=t.closest('.wrong-tab');
-  if(wt){
-    WRONG_BANK=wt.dataset.wbank;
-    document.querySelectorAll('.wrong-tab').forEach(x=>x.classList.toggle('active',x===wt));
+  // 错题本状态 tab / 翻页
+  const wst=t.closest('[data-wstatus]');
+  if(wst){
+    WRONG_STATUS=wst.dataset.wstatus; WRONG_PAGE=1;
+    document.querySelectorAll('#wrongStatusTabs .wrong-tab').forEach(x=>x.classList.toggle('active',x===wst));
     renderMineWrong();
     return;
   }
+  if(t.id==='wpPrev'){ WRONG_PAGE--; renderMineWrong(); return; }
+  if(t.id==='wpNext'){ WRONG_PAGE++; renderMineWrong(); return; }
 });
 
 /* ===== 账户卡 / 练习区关闭 / 计时模式按钮 ===== */
