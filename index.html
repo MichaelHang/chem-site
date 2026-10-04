@@ -1244,9 +1244,11 @@ function renderLevelQuestion(){
     '<div class="quiz-meta">'+esc(q.module)+qTypeTag(q)+'</div>'+
     '<div class="quiz-q">'+esc(q.q)+'</div>'+
     '<div id="optList">'+q.options.map((o,i)=>'<div class="opt" data-i="'+i+'"><span class="mark">'+letters[i]+'</span><span>'+esc(o)+'</span></div>').join('')+'</div>'+
-    '<div class="quiz-acts"><button class="btn-primary" id="lvSubmit">提交答案</button>'+(isDev()?'<button class="btn-ghost" id="lvSkip" style="margin-left:8px;">下一题</button><button class="btn-ghost" id="lvDel" style="margin-left:8px;">删除本题</button>':'')+'</div>';
+    '<div class="quiz-acts">'+(c.idx>0?'<button class="btn-ghost" id="lvPrev">上一题</button>':'')+'<button class="btn-primary" id="lvSubmit">提交答案</button>'+(isDev()?'<button class="btn-ghost" id="lvSkip" style="margin-left:8px;">下一题</button><button class="btn-ghost" id="lvDel" style="margin-left:8px;">删除本题</button>':'')+'</div>';
   let chosen=null;
   box.querySelectorAll('.opt').forEach(el=>{ el.addEventListener('click',()=>{ box.querySelectorAll('.opt').forEach(x=>x.classList.remove('sel')); el.classList.add('sel'); chosen=Number(el.dataset.i); }); });
+  const prevBtn=document.getElementById('lvPrev');
+  if(prevBtn) prevBtn.addEventListener('click',()=>{ if(c.idx>0){ c.idx--; if(c.answers[c.idx]!==undefined){ renderLevelAnswered(); } else { renderLevelQuestion(); } } });
   document.getElementById('lvSubmit').addEventListener('click',()=>{ if(chosen===null){ toast('请先选择一个答案'); return; } levelSubmit(c.bank,q,chosen); });
   const skipEl=document.getElementById('lvSkip');
   if(skipEl) skipEl.addEventListener('click',()=>{ if(c.idx+1<c.total){ c.idx++; renderLevelQuestion(); } else renderLevelResult(); });
