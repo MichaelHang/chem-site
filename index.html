@@ -1229,7 +1229,7 @@ function renderLevelSub(lv){
 }
 function startBatch(lv,i){
   const chunk=buildBatches(lv)[i];
-  LEVEL_CTX={bank:lv.bank, qids:chunk, idx:0, correct:0, total:chunk.length, pass:lv.pass, levelId:batchId(lv,i), module:lv.module, moduleId:lv.id, batchIndex:i};
+  LEVEL_CTX={bank:lv.bank, qids:chunk, idx:0, correct:0, total:chunk.length, pass:lv.pass, levelId:batchId(lv,i), module:lv.module, moduleId:lv.id, batchIndex:i, answers:[]};
   document.getElementById('levelTitle').textContent=lv.module+' · 第'+(i+1)+'关（'+chunk.length+' 题）';
   document.getElementById('levelModal').classList.add('show');
   renderLevelQuestion();
@@ -1259,21 +1259,36 @@ function renderLevelQuestion(){
     if(c.idx>=c.total){ renderLevelResult(); } else { renderLevelQuestion(); }
   });
 }
-function levelSubmit(bank,q,chosen){
-  const correct=(chosen===q.answer); const c=LEVEL_CTX;
-  if(!isDev()) recordAnswer(bank,q,correct);
-  if(correct){ c.correct++; }
+/* 已作答视图：显示当前题的作答结果（高亮 + 解析），结果页与"上一题"回看共用。
+   回看已答过的题直接回放，不会重复计分或重答。 */
+function renderLevelAnswered(){
+  const c=LEVEL_CTX; const q=getQ(c.bank, c.qids[c.idx]); const chosen=c.answers[c.idx];
+  document.getElementById('levelTitle').textContent=c.module+' · 第'+(c.batchIndex+1)+'关（'+c.total+' 题）';
   const box=document.getElementById('levelBody');
   const letters=['A','B','C','D'];
   box.innerHTML=
+    '<div class="lv-progress">第 '+(c.idx+1)+' / '+c.total+' 题　已答对 '+c.correct+'</div>'+
     '<div class="quiz-meta">'+esc(q.module)+qTypeTag(q)+'</div>'+
     '<div class="quiz-q">'+esc(q.q)+'</div>'+
     '<div>'+q.options.map((o,i)=>{ let cls='opt'; if(i===q.answer) cls+=' right'; else if(i===chosen) cls+=' wrong';
       const tag=i===q.answer?'<b style="color:#2ecc71;margin-left:6px;">正确答案</b>':(i===chosen?'<b style="color:#e74c3c;margin-left:6px;">你的选择</b>':'');
       return '<div class="'+cls+'"><span class="mark">'+letters[i]+'</span><span>'+esc(o)+tag+'</span></div>'; }).join('')+'</div>'+
     '<div class="explain"><b>解析：</b>'+esc(q.explain)+'</div>'+
-    '<div class="quiz-acts"><button class="btn-primary" id="lvNext">'+(c.idx+1<c.total?'下一题':'查看结算')+'</button></div>';
-  document.getElementById('lvNext').addEventListener('click',()=>{ if(c.idx+1<c.total){ c.idx++; renderLevelQuestion(); } else renderLevelResult(); });
+    '<div class="quiz-acts">'+(c.idx>0?'<button class="btn-ghost" id="lvPrev">上一题</button>':'')+
+    '<button class="btn-primary" id="lvNext">'+(c.idx+1<c.total?'下一题':'查看结算')+'</button></div>';
+  const prev=document.getElementById('lvPrev');
+  if(prev) prev.addEventListener('click',()=>{ if(c.idx>0){ c.idx--; renderLevelAnswered(); } });
+  document.getElementById('lvNext').addEventListener('click',()=>{
+    if(c.idx+1<c.total){ c.idx++; if(c.answers[c.idx]!==undefined){ renderLevelAnswered(); } else { renderLevelQuestion(); } }
+    else renderLevelResult();
+  });
+}
+function levelSubmit(bank,q,chosen){
+  const correct=(chosen===q.answer); const c=LEVEL_CTX;
+  c.answers[c.idx]=chosen;
+  if(!isDev()) recordAnswer(bank,q,correct);
+  if(correct){ c.correct++; }
+  renderLevelAnswered();
   renderAll();
 }
 function renderLevelResult(){
