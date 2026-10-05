@@ -275,6 +275,7 @@ main.toc-hidden #sidebar { display: none; }
   <button id="tocBtn" title="展开/收起教材目录">☰ 目录</button>
   <h1>⚗️ 高中化学知识图谱</h1>
   <span id="stats"></span>
+  <button id="exitSubBtn" style="display:none;border:1px solid #9cc3ff;background:#e8f1ff;color:#1d5fd6;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;" title="退出聚焦模式">⟵ 显示全部</button>
   <span id="hint">拖拽平移 · 滚轮缩放 · 点击节点看详情</span>
   <div id="searchWrap">
     <input id="search" type="text" placeholder="搜索知识点 / 物质 / 反应…" autocomplete="off">
@@ -331,6 +332,7 @@ window.__bootApp = function () {
   let focus = null; // 前置追溯状态 {root, rootLabel, ids, order}
   let markedId = null; // 选中节点的常驻标记（琥珀环），与悬停状态分离
   let baseData = []; // updateChart 生成的完整数据数组，markSelected 在其上打标记
+  let subFocus = null; // 聚焦模式（URL sub=1 进入）：{root, ids:Set}——只显示该知识点与其邻居
   let activeTab = 'detail'; // 面板当前 tab：detail | chat
   let lastDetail = null; // 详情 tab 的状态（节点或欢迎页），切回时重放
 
@@ -425,10 +427,21 @@ window.__bootApp = function () {
   window.addEventListener('resize', () => { if (window.innerWidth > 980) mainEl.classList.remove('toc-open'); });
 
   function filtered() {
-    const nodes = G.nodes.filter(n => activeModules.has(n.module));
+    let pool = G.nodes;
+    if (subFocus) pool = pool.filter(n => subFocus.ids.has(n.id)); // 聚焦模式：只留根与邻居（不受板块筛选限制）
+    else pool = pool.filter(n => activeModules.has(n.module));
+    const nodes = pool;
     const ids = new Set(nodes.map(n => n.id));
     const edges = G.edges.filter(e => ids.has(e.source) && ids.has(e.target));
     return { nodes, edges };
+  }
+  function computeSubIds(rootId) {
+    const ids = new Set([rootId]);
+    for (const e of G.edges) {
+      if (e.source === rootId) ids.add(e.target);
+      if (e.target === rootId) ids.add(e.source);
+    }
+    return ids;
   }
 
   // ── URL 状态（hash）：#m=板块列表&n=选中节点，刷新/分享不丢 ──────────────
@@ -444,12 +457,14 @@ window.__bootApp = function () {
     }
     const n = params.get('n');
     if (n && nodeById.has(n)) out.node = n;
+    if (params.get('sub') === '1') out.sub = true;
     return out;
   }
   function writeHash() {
     const params = new URLSearchParams();
     if (activeModules.size !== G.meta.modules.length) params.set('m', [...activeModules].join('|'));
     if (markedId) params.set('n', markedId);
+    if (subFocus) params.set('sub', '1');
     const q = params.toString();
     const h = q ? '#' + q : '';
     if (h === location.hash) { lastHash = h; return; }
@@ -470,6 +485,11 @@ window.__bootApp = function () {
         rebuild();
       }
     }
+    const wantSub = init.node && init.sub ? init.node : null;
+    if (wantSub !== (subFocus ? subFocus.root : null)) {
+      subFocus = wantSub ? { root: wantSub, ids: computeSubIds(wantSub) } : null;
+      rebuild();
+    }
     if (init.node) {
       selectNode(init.node);
     } else if (markedId) {
@@ -479,12 +499,16 @@ window.__bootApp = function () {
     }
   }
   window.addEventListener('popstate', applyFromHash);
+  document.getElementById('exitSubBtn').addEventListener('click', () => {
+    subFocus = null;
+    rebuild();
+  });
 
   function rebuild() {
     focus = null;
     markedId = null;
     updateChart();
-    statsEl.textContent = `${currentNodes.length} 个节点 · ${currentEdges.length} 条关系`;
+    if (!subFocus) statsEl.textContent = `${currentNodes.length} 个节点 · ${currentEdges.length} 条关系`;
     showWelcome();
     writeHash();
   }
@@ -560,11 +584,14 @@ window.__bootApp = function () {
         scaleLimit: { min: 0.25, max: 4 },
       }],
     }, true);
-    if (focus) {
+    if (subFocus) {
+      statsEl.textContent = `聚焦：「${nodeById.get(subFocus.root)?.label || ''}」与其 ${currentNodes.length - 1} 个关联（点击「显示全部」退出）`;
+    } else if (focus) {
       statsEl.textContent = `前置追溯：「${focus.rootLabel}」的 ${focus.order.length - 1} 个前置知识点（Esc 或点击空白退出）`;
     } else {
       statsEl.textContent = `${currentNodes.length} 个节点 · ${currentEdges.length} 条关系`;
     }
+    document.getElementById('exitSubBtn').style.display = subFocus ? 'inline-block' : 'none';
   }
 
   // 从 id 出发沿「前置」边向基础方向广度优先追溯，返回全部前置及其深度
@@ -586,6 +613,7 @@ window.__bootApp = function () {
 
   function toggleFocus(id) {
     if (focus && focus.root === id) { rebuild(); return; }
+    if (subFocus) { subFocus = null; writeHash(); } // 追溯需全图，退出聚焦
     const { ids, order } = computePrereq(id);
     focus = { root: id, rootLabel: nodeById.get(id).label, ids, order };
     // 自动打开前置节点所在板块，避免追溯链被筛选截断
@@ -745,7 +773,8 @@ window.__bootApp = function () {
   });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') {
-      if (focus) rebuild();
+      if (subFocus) { subFocus = null; rebuild(); }
+      else if (focus) rebuild();
       else {
         markSelected(null);
         selectedIndex = -1; showWelcome(); closePanelMobile();
@@ -1043,6 +1072,9 @@ window.__bootApp = function () {
   if (initHash.mods) {
     activeModules = new Set(initHash.mods);
     refreshChapterHighlight();
+  }
+  if (initHash.node && initHash.sub) {
+    subFocus = { root: initHash.node, ids: computeSubIds(initHash.node) };
   }
   rebuild();
   if (initHash.node) selectNode(initHash.node);
