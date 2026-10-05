@@ -241,6 +241,11 @@ main.toc-hidden #sidebar { display: none; }
   padding: 6px 10px; font-size: 13px; color: var(--text);
 }
 #tocBtn:hover { border-color: #b9c6e0; }
+#panelClose {
+  display: none; margin-left: auto; border: none; background: none;
+  font-size: 20px; color: var(--muted); cursor: pointer; padding: 2px 6px; line-height: 1;
+}
+#panelClose:hover { color: #e05252; }
 @media (max-width: 980px) {
   #panelDrag { display: none; }
   main { position: relative; }
@@ -249,8 +254,17 @@ main.toc-hidden #sidebar { display: none; }
     box-shadow: 0 0 18px rgba(15,23,42,.18); display: none;
   }
   main.toc-open #sidebar { display: block; }
+  /* 详情栏：小屏改为覆盖式抽屉，点节点滑出、× 关闭 */
+  #panel {
+    position: absolute; z-index: 20; top: 0; bottom: 0; right: 0;
+    width: min(320px, 88vw) !important; display: none;
+    box-shadow: -10px 0 26px rgba(15,23,42,.2);
+  }
+  main.panel-open #panel { display: flex; }
+  #panelClose { display: block; }
+  #chatSettingsTop { margin-left: 6px; }
 }
-@media (max-width: 900px) { #panel { width: 290px; } #search { width: 180px; } }
+@media (max-width: 900px) { #search { width: 180px; } }
 </style>
 </head>
 <body>
@@ -277,6 +291,7 @@ main.toc-hidden #sidebar { display: none; }
       <span class="ptab on" data-tab="detail">详情</span>
       <span class="ptab" data-tab="chat">AI 问答</span>
       <span id="chatSettingsTop" title="AI 服务设置（协议 / 地址 / Key / 模型）">⚙</span>
+      <button id="panelClose" aria-label="关闭详情栏">×</button>
     </div>
     <div id="panelBody"></div>
   </aside>
@@ -649,9 +664,16 @@ window.__bootApp = function () {
       </div>`).join('');
   }
 
+  // ── 小屏：详情栏抽屉开关 ──
+  const isMobileView = () => window.innerWidth <= 980;
+  const openPanelMobile = () => { if (isMobileView()) mainEl.classList.add('panel-open'); };
+  const closePanelMobile = () => { mainEl.classList.remove('panel-open'); };
+  document.getElementById('panelClose').addEventListener('click', closePanelMobile);
+
   function showPanel(node) {
     lastDetail = { type: 'node', node };
     if (activeTab !== 'detail') return;
+    openPanelMobile();
     let html = `<div>${badge(node.type)}<span class="module-tag" style="margin-left:2px">${esc(node.module || '')}</span></div>
       <h2>${esc(node.label)}</h2>`;
     if (node.desc) html += `<div class="desc">${esc(node.desc)}</div>`;
@@ -719,14 +741,14 @@ window.__bootApp = function () {
   chart.on('click', params => {
     if (params.dataType === 'node') selectNode(params.data.id);
     else if (focus) rebuild();
-    else { markSelected(null); selectedIndex = -1; showWelcome(); }
+    else { markSelected(null); selectedIndex = -1; showWelcome(); closePanelMobile(); }
   });
   document.addEventListener('keydown', ev => {
     if (ev.key === 'Escape') {
       if (focus) rebuild();
       else {
         markSelected(null);
-        selectedIndex = -1; showWelcome();
+        selectedIndex = -1; showWelcome(); closePanelMobile();
       }
       document.getElementById('searchResults').style.display = 'none';
     }
