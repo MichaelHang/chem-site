@@ -495,7 +495,9 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 (function () {
   // 知识图谱网址：部署图谱后填它的网址（末尾不带 /），如 'https://chem-graph.pages.dev'
   // 临时指定可不改代码：控制台执行 localStorage.setItem('chem-graph-base','http://127.0.0.1:8930')
-  const GRAPH_BASE = (localStorage.getItem('chem-graph-base') || '').replace(/\/+$/, '');
+  // 默认 graph = 同域子路径（手动把图谱构建产物 copy 到本目录 graph/ 即可）；
+// 若图谱部署在独立网址，则 localStorage.setItem('chem-graph-base','https://图谱域名') 覆盖
+  const GRAPH_BASE = (localStorage.getItem('chem-graph-base') || 'graph').replace(/\/+$/, '');
   const KP_COLORS = { concept:'#5B8FF9', substance:'#38B27E', reaction:'#EE7725', category:'#8A72E8', experiment:'#22A2A8', pitfall:'#E0559D' };
   const KP_TYPE = { concept:'概念', substance:'物质', reaction:'反应', category:'类别', experiment:'实验', pitfall:'易错点' };
   let labels = null;

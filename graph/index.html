@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>高中化学知识图谱</title>
+<script src="data.js"></script>
+<script>
+// echarts 加载：本地 vendor 副本优先（部署后不依赖外网），失败再依次尝试 CDN
+(function () {
+  var sources = [
+    'vendor/echarts.min.js',
+    'https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js',
+    'https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js',
+    'https://cdn.staticfile.net/echarts/5.4.3/echarts.min.js'
+  ];
+  var i = 0;
+  function tryNext() {
+    if (typeof window.echarts !== 'undefined') { window.__bootApp(); return; }
+    if (i >= sources.length) {
+      document.getElementById('fatal').style.display = 'flex';
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = sources[i++];
+    s.onerror = function () { tryNext(); };
+    s.onload = function () {
+      if (typeof window.echarts !== 'undefined') window.__bootApp();
+      else tryNext();
+    };
+    document.head.appendChild(s);
+  }
+  window.addEventListener('DOMContentLoaded', tryNext);
+})();
+</script>
+<style>
+:root {
+  --bg: #f6f7fa; --panel: #ffffff; --border: #e4e7ee;
+  --text: #1f2329; --muted: #6b7280; --accent: #3b82f6;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--text);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#fatal {
+  display: none; position: fixed; inset: 0; background: var(--bg); z-index: 99;
+  align-items: center; justify-content: center; text-align: center;
+  color: var(--muted); font-size: 14px; line-height: 2; padding: 24px;
+}
+header {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--border);
+  position: relative; z-index: 20;
+}
+header h1 { font-size: 17px; font-weight: 700; white-space: nowrap; }
+#stats { color: var(--muted); font-size: 12px; white-space: nowrap; }
+#hint { color: var(--muted); font-size: 12px; margin-left: auto; white-space: nowrap; }
+#searchWrap { position: relative; }
+#search {
+  width: 250px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; outline: none; background: #fbfcfe;
+}
+#search:focus { border-color: var(--accent); background: #fff; }
+#searchResults {
+  display: none; position: absolute; right: 0; top: 38px; width: 300px; max-height: 340px;
+  overflow: auto; background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+}
+#searchResults .sr {
+  padding: 9px 12px; cursor: pointer; display: flex; justify-content: space-between;
+  align-items: center; gap: 8px; border-bottom: 1px solid #f1f3f7;
+}
+#searchResults .sr:last-child { border-bottom: none; }
+#searchResults .sr:hover, #searchResults .sr.active { background: #eef4ff; }
+#searchResults .sr .label { font-size: 13px; }
+#searchResults .sr .sub { color: var(--muted); font-size: 11px; }
+main { flex: 1; display: flex; min-height: 0; }
+#chart { flex: 1; min-width: 0; }
+#panel {
+  width: 420px; flex-shrink: 0; background: var(--panel); border-left: 1px solid var(--border);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+#panelDrag {
+  width: 5px; flex-shrink: 0; cursor: col-resize; background: transparent;
+  transition: background .15s;
+}
+#panelDrag:hover, #panelDrag.dragging { background: #c9dbf7; }
+#panelTabs {
+  display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--panel);
+}
+.ptab {
+  padding: 7px 14px; font-size: 13px; cursor: pointer; user-select: none;
+  color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.ptab.on { color: #1d5fd6; font-weight: 600; border-bottom-color: #1d5fd6; }
+#chatSettingsTop {
+  margin-left: auto; cursor: pointer; color: var(--muted); font-size: 15px;
+  padding: 4px 8px; border-radius: 6px; user-select: none; line-height: 1;
+}
+#chatSettingsTop:hover { color: #1d5fd6; background: #eef4ff; }
+#panelBody { flex: 1; overflow-y: auto; padding: 18px 20px 32px; }
+#panelBody.wide-pad { padding: 0; }
+.badge {
+  display: inline-block; color: #fff; font-size: 11px; border-radius: 5px;
+  padding: 1.5px 8px; margin-right: 6px; vertical-align: 1px;
+}
+#panel h2 { font-size: 18px; line-height: 1.45; margin: 6px 0 2px; }
+#panel .module-tag { color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+#panel .desc { font-size: 13px; line-height: 1.75; color: #374151; margin-bottom: 14px; }
+#panel .field { margin-bottom: 12px; font-size: 13px; line-height: 1.7; }
+#panel .field .k { color: var(--muted); font-size: 12px; margin-right: 6px; }
+#panel .equation {
+  font-family: "SF Mono", Menlo, Consolas, "PingFang SC", monospace;
+  background: #f5f7fb; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; font-size: 13.5px; line-height: 1.8; margin-bottom: 12px; color: #1f2937;
+}
+/* 教材式条件排版：条件写在等号/可逆符号上方 */
+.eq-cond { display: inline-flex; flex-direction: column; align-items: center; vertical-align: 0.6em; margin: 0 4px; }
+.eq-cond .cond { font-size: 10.5px; color: #b45309; font-weight: 600; white-space: nowrap; line-height: 1.2; }
+.eq-cond .bar { align-self: stretch; border-bottom: 3px double #4b5563; min-width: 2.5em; height: 0.5em; }
+.eq-cond .bar.op { border: none; color: #374151; font-size: 1.15em; height: auto; }
+#panel .flag { display: inline-block; font-size: 11px; border-radius: 5px; padding: 2px 8px; margin-bottom: 12px; }
+.flag.yes { background: #fdecec; color: #c0392b; }
+.flag.no { background: #eefaf1; color: #1e8449; }
+#panel .nei-title { font-size: 12px; font-weight: 700; color: var(--muted); margin: 16px 0 6px; letter-spacing: .5px; }
+.nei-group { margin-bottom: 4px; }
+.nei-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+  cursor: pointer; font-size: 13px;
+}
+.nei-row:hover { background: #eef4ff; }
+.nei-row .rel { color: var(--muted); font-size: 11px; background: #f1f3f7; border-radius: 4px; padding: 1px 6px; flex-shrink: 0; }
+.nei-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.nei-row .note { color: var(--muted); font-size: 11px; }
+.focus-btn {
+  display: block; width: 100%; padding: 8px 10px; margin: 2px 0 12px;
+  border: 1px solid #9cc3ff; background: #e8f1ff; color: #1d5fd6;
+  border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.focus-btn:hover { background: #dcebff; }
+.welcome { color: var(--muted); font-size: 13px; line-height: 2; }
+.welcome b { color: var(--text); }
+.legend-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12.5px; }
+.legend-line { width: 34px; height: 0; border-top: 2px solid; border-radius: 2px; }
+table.props { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 14px; }
+table.props td { border: 1px solid var(--border); padding: 6px 9px; line-height: 1.6; }
+table.props td.k { color: var(--muted); background: #fafbfd; white-space: nowrap; width: 76px; }
+ul.points { padding-left: 18px; font-size: 13px; line-height: 1.9; color: #374151; }
+/* ── AI 问答 ── */
+#chatWrap { display: flex; flex-direction: column; height: 100%; }
+#chatLog { flex: 1; overflow-y: auto; padding: 14px 14px 8px; }
+.msg { margin-bottom: 12px; display: flex; }
+.msg.ai { flex-direction: column; align-items: flex-start; }
+.msg.user { justify-content: flex-end; }
+.msg .bubble {
+  max-width: 86%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.75;
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+}
+.msg .bubble .md-hr { border: none; border-top: 1px solid #d7dce6; margin: 7px 0; }
+.msg.user .bubble { background: #3b82f6; color: #fff; border-bottom-right-radius: 4px; }
+.msg.ai .bubble { background: #f1f5fb; color: #1f2937; border-bottom-left-radius: 4px; }
+.msg.ai .bubble.thinking { color: var(--muted); }
+.ctx-chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; width: 100%; align-items: flex-start; }
+.ctx-chips span {
+  font-size: 11px; padding: 2.5px 9px; border-radius: 999px; background: #fff;
+  border: 1px solid #c7d7f5; color: #1d5fd6; cursor: pointer;
+  display: inline-block; max-width: 82%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  vertical-align: top; box-sizing: border-box;
+}
+.ctx-chips span:hover { background: #e8f1ff; }
+.ctx-chips span.more { background: #f1f5fb; color: var(--muted); border-color: var(--border); }
+#chatInputRow { display: flex; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+#chatInput {
+  flex: 1; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px;
+  font-size: 13px; outline: none; background: #fbfcfe; resize: none; font-family: inherit;
+  line-height: 1.5; max-height: 90px;
+}
+#chatInput:focus { border-color: var(--accent); background: #fff; }
+#chatSend {
+  border: none; background: #3b82f6; color: #fff; border-radius: 10px; padding: 0 16px;
+  font-size: 13px; cursor: pointer; flex-shrink: 0;
+}
+#chatSend:disabled { background: #b9c6e0; cursor: not-allowed; }
+#chatClear {
+  border: none; background: none; color: var(--muted); font-size: 12px; cursor: pointer;
+  padding: 4px 6px; align-self: center;
+}
+#chatClear:hover { color: #e05252; }
+#chatSettingsBtn { border: none; background: none; color: var(--muted); font-size: 12px; cursor: pointer;
+  padding: 4px 6px; align-self: center; }
+#chatSettingsBtn:hover { color: #1d5fd6; }
+/* ── LLM 设置表单 ── */
+#llmSettings { padding: 16px 16px 24px; overflow-y: auto; height: 100%; }
+#llmSettings h3 { font-size: 14px; margin-bottom: 4px; }
+#llmSettings .sub { color: var(--muted); font-size: 12px; line-height: 1.6; margin-bottom: 12px; }
+#llmSettings label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+#llmSettings input, #llmSettings select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; outline: none; background: #fbfcfe; box-sizing: border-box; font-family: inherit;
+}
+#llmSettings input:focus, #llmSettings select:focus { border-color: var(--accent); background: #fff; }
+#llmSettings .row2 { display: flex; gap: 8px; margin-top: 14px; }
+#llmSettings .row2 button {
+  flex: 1; padding: 8px 0; border-radius: 8px; font-size: 13px; cursor: pointer;
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+}
+#llmSettings .row2 button.primary { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+#llmSettings .row2 button:hover { filter: brightness(0.97); }
+#llmSettings .tip { font-size: 11.5px; color: var(--muted); line-height: 1.7; margin-top: 12px;
+  background: #f6f8fc; border-radius: 8px; padding: 8px 10px; }
+body.toc-wrap { display: flex; flex-direction: column; }
+#sidebar {
+  width: 216px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 8px 6px 24px;
+}
+main.toc-hidden #sidebar { display: none; }
+#toc .book { margin-bottom: 1px; }
+#toc .book-title {
+  padding: 7px 8px; font-size: 13px; font-weight: 700; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 6px; border-radius: 8px; color: var(--text);
+}
+#toc .book-title:hover { background: #f0f4fa; }
+#toc .book-title .chev { transition: transform .15s; font-size: 9px; color: var(--muted); }
+#toc .book.open .book-title .chev { transform: rotate(90deg); }
+#toc .book-chapters { display: none; }
+#toc .book.open .book-chapters { display: block; }
+#toc .chapter {
+  padding: 6px 8px 6px 21px; font-size: 12.5px; cursor: pointer; user-select: none;
+  border-radius: 7px; color: #374151; line-height: 1.45;
+}
+#toc .chapter:hover { background: #eef4ff; }
+#toc .chapter.active { background: #e8f1ff; color: #1d5fd6; font-weight: 600; }
+#toc .all-entry { font-weight: 600; margin-bottom: 6px; padding-left: 8px; border-bottom: 1px solid var(--border); border-radius: 0; padding-bottom: 9px; }
+#tocBtn {
+  border: 1px solid var(--border); background: #fff; border-radius: 8px; cursor: pointer;
+  padding: 6px 10px; font-size: 13px; color: var(--text);
+}
+#tocBtn:hover { border-color: #b9c6e0; }
+@media (max-width: 980px) {
+  #panelDrag { display: none; }
+  main { position: relative; }
+  #sidebar {
+    position: absolute; z-index: 15; top: 0; bottom: 0; left: 0;
+    box-shadow: 0 0 18px rgba(15,23,42,.18); display: none;
+  }
+  main.toc-open #sidebar { display: block; }
+}
+@media (max-width: 900px) { #panel { width: 290px; } #search { width: 180px; } }
+</style>
+</head>
+<body>
+
+<div id="fatal">echarts 加载失败：请检查网络连接后刷新。<br>（页面依赖 CDN 提供 echarts，本地数据不受影响）</div>
+
+<header>
+  <button id="tocBtn" title="展开/收起教材目录">☰ 目录</button>
+  <h1>⚗️ 高中化学知识图谱</h1>
+  <span id="stats"></span>
+  <span id="hint">拖拽平移 · 滚轮缩放 · 点击节点看详情</span>
+  <div id="searchWrap">
+    <input id="search" type="text" placeholder="搜索知识点 / 物质 / 反应…" autocomplete="off">
+    <div id="searchResults"></div>
+  </div>
+</header>
+
+<main>
+  <aside id="sidebar"><div id="toc"></div></aside>
+  <div id="chart"></div>
+  <div id="panelDrag" title="拖动调整栏宽"></div>
+  <aside id="panel">
+    <div id="panelTabs">
+      <span class="ptab on" data-tab="detail">详情</span>
+      <span class="ptab" data-tab="chat">AI 问答</span>
+      <span id="chatSettingsTop" title="AI 服务设置（协议 / 地址 / Key / 模型）">⚙</span>
+    </div>
+    <div id="panelBody"></div>
+  </aside>
+</main>
+
+<script>
+window.__bootApp = function () {
+  const G = window.GRAPH_DATA;
+  const TYPES = {
+    concept:    { name: '概念', color: '#5B8FF9' },
+    substance:  { name: '物质', color: '#38B27E' },
+    reaction:   { name: '反应', color: '#EE7725' },
+    category:   { name: '类别', color: '#8A72E8' },
+    experiment: { name: '实验', color: '#22A2A8' },
+    pitfall:    { name: '易错点', color: '#E0559D' },
+  };
+  const TYPE_ORDER = ['concept', 'substance', 'reaction', 'category', 'experiment', 'pitfall'];
+  const REL_STYLE = {
+    '前置': { color: '#6f9bff', type: 'dashed', width: 2 },
+    '包含': { color: '#a7b3c9', type: 'dashed', width: 1.2 },
+    '不能共存': { color: '#e05252', type: 'dashed', width: 1.8 },
+  };
+
+  const nodeById = new Map(G.nodes.map(n => [n.id, n]));
+  const degree = new Map();
+  for (const e of G.edges) {
+    degree.set(e.source, (degree.get(e.source) || 0) + 1);
+    degree.set(e.target, (degree.get(e.target) || 0) + 1);
+  }
+  const BASE_SIZE = { concept: 30, substance: 26, experiment: 26, category: 21, reaction: 15, pitfall: 13 };
+  const SYMBOL = { reaction: 'rect', category: 'diamond' };
+
+  let activeModules = new Set(G.meta.modules);
+  let currentNodes = [];
+  let currentEdges = [];
+  let selectedIndex = -1;
+  let focus = null; // 前置追溯状态 {root, rootLabel, ids, order}
+  let markedId = null; // 选中节点的常驻标记（琥珀环），与悬停状态分离
+  let baseData = []; // updateChart 生成的完整数据数组，markSelected 在其上打标记
+  let activeTab = 'detail'; // 面板当前 tab：detail | chat
+  let lastDetail = null; // 详情 tab 的状态（节点或欢迎页），切回时重放
+
+  // 选中环：改完整数据数组后回写（部分数组会被 echarts 当作整体替换，务必全量）
+  function markSelected(id) {
+    markedId = id || null;
+    for (const item of baseData) {
+      if (item.id === id) {
+        item.__selected = true;
+        item.itemStyle = { borderColor: '#f59e0b', borderWidth: 3, opacity: 1 };
+        item.label = { show: true, fontWeight: 700, fontSize: 12, color: '#111' };
+      } else if (item.__selected) {
+        item.__selected = false;
+        if (item.__dim) { item.itemStyle = { opacity: 0.07 }; item.label = { show: false }; }
+        else { item.itemStyle = { borderColor: '#ffffff', borderWidth: 1.5 }; item.label = { fontWeight: 'normal', fontSize: 10 }; }
+      }
+    }
+    if (baseData.length) chart.setOption({ series: [{ data: baseData }] });
+    writeHash();
+  }
+
+  const chart = echarts.init(document.getElementById('chart'));
+  const panel = document.getElementById('panel');
+  const panelBody = document.getElementById('panelBody');
+  const statsEl = document.getElementById('stats');
+
+  // ── 左侧教材目录树 ──────────────────────────────
+  let activeChapter = null;
+  const tocEl = document.getElementById('toc');
+  const mainEl = document.querySelector('main');
+
+  function refreshChapterHighlight() {
+    for (const c of tocEl.querySelectorAll('.chapter')) {
+      const mods = c.dataset.modules.split('|');
+      const exact = mods.length === activeModules.size && mods.every(m => activeModules.has(m));
+      c.classList.toggle('active', exact);
+    }
+  }
+
+  function buildToc() {
+    const allDiv = document.createElement('div');
+    allDiv.className = 'chapter all-entry';
+    allDiv.textContent = '全部板块';
+    allDiv.dataset.modules = G.meta.modules.join('|');
+    allDiv.onclick = () => {
+      activeChapter = null;
+      activeModules = new Set(G.meta.modules);
+      refreshChapterHighlight();
+      rebuild();
+    };
+    tocEl.appendChild(allDiv);
+    for (const book of G.meta.textbooks || []) {
+      const div = document.createElement('div');
+      div.className = 'book open';
+      const title = document.createElement('div');
+      title.className = 'book-title';
+      title.innerHTML = `<span class="chev">▶</span><span>${esc(book.name)}</span>`;
+      title.onclick = () => div.classList.toggle('open');
+      const list = document.createElement('div');
+      list.className = 'book-chapters';
+      for (const ch of book.chapters) {
+        const c = document.createElement('div');
+        c.className = 'chapter';
+        c.textContent = ch.name;
+        c.dataset.modules = ch.modules.join('|');
+        c.title = '点击查看该章图谱；再次点击恢复全部板块';
+        c.onclick = () => {
+          if (activeChapter === ch.name) {
+            activeChapter = null;
+            activeModules = new Set(G.meta.modules);
+          } else {
+            activeChapter = ch.name;
+            activeModules = new Set(ch.modules);
+          }
+          refreshChapterHighlight();
+          rebuild();
+        };
+        list.appendChild(c);
+      }
+      div.appendChild(title);
+      div.appendChild(list);
+      tocEl.appendChild(div);
+    }
+    refreshChapterHighlight();
+  }
+
+  const tocBtn = document.getElementById('tocBtn');
+  tocBtn.onclick = () => {
+    if (window.innerWidth <= 980) mainEl.classList.toggle('toc-open');
+    else mainEl.classList.toggle('toc-hidden');
+  };
+  window.addEventListener('resize', () => { if (window.innerWidth > 980) mainEl.classList.remove('toc-open'); });
+
+  function filtered() {
+    const nodes = G.nodes.filter(n => activeModules.has(n.module));
+    const ids = new Set(nodes.map(n => n.id));
+    const edges = G.edges.filter(e => ids.has(e.source) && ids.has(e.target));
+    return { nodes, edges };
+  }
+
+  // ── URL 状态（hash）：#m=板块列表&n=选中节点，刷新/分享不丢 ──────────────
+  let lastHash = null;
+  function parseHash() {
+    if (!location.hash || location.hash === '#') return {};
+    const params = new URLSearchParams(location.hash.slice(1));
+    const out = {};
+    const m = params.get('m');
+    if (m !== null) {
+      const mods = m.split('|').filter(x => G.meta.modules.includes(x));
+      if (mods.length) out.mods = mods;
+    }
+    const n = params.get('n');
+    if (n && nodeById.has(n)) out.node = n;
+    return out;
+  }
+  function writeHash() {
+    const params = new URLSearchParams();
+    if (activeModules.size !== G.meta.modules.length) params.set('m', [...activeModules].join('|'));
+    if (markedId) params.set('n', markedId);
+    const q = params.toString();
+    const h = q ? '#' + q : '';
+    if (h === location.hash) { lastHash = h; return; }
+    lastHash = h;
+    history.pushState(null, '', h || location.pathname + location.search);
+  }
+  function applyFromHash() {
+    if (location.hash === lastHash) return;
+    lastHash = location.hash;
+    const init = parseHash();
+    if (init.mods) {
+      const s = new Set(init.mods);
+      const differs = s.size !== activeModules.size || [...s].some(x => !activeModules.has(x));
+      if (differs) {
+        activeModules = s;
+        activeChapter = null;
+        refreshChapterHighlight();
+        rebuild();
+      }
+    }
+    if (init.node) {
+      selectNode(init.node);
+    } else if (markedId) {
+      markSelected(null);
+      selectedIndex = -1;
+      showWelcome();
+    }
+  }
+  window.addEventListener('popstate', applyFromHash);
+
+  function rebuild() {
+    focus = null;
+    markedId = null;
+    updateChart();
+    statsEl.textContent = `${currentNodes.length} 个节点 · ${currentEdges.length} 条关系`;
+    showWelcome();
+    writeHash();
+  }
+
+  function updateChart() {
+    ({ nodes: currentNodes, edges: currentEdges } = filtered());
+    selectedIndex = -1;
+    const inFocus = focus ? focus.ids : null;
+    const closureEdges = new Set();
+    if (inFocus) {
+      for (const e of currentEdges) {
+        if (e.relation === '前置' && inFocus.has(e.source) && inFocus.has(e.target)) closureEdges.add(e);
+      }
+    }
+    const data = currentNodes.map(n => {
+      const item = {
+        id: n.id, name: n.label,
+        category: TYPE_ORDER.indexOf(n.type),
+        symbol: SYMBOL[n.type] || 'circle',
+        symbolSize: BASE_SIZE[n.type] + Math.min(20, (degree.get(n.id) || 0) * 1.3),
+        value: n,
+      };
+      if (inFocus && !inFocus.has(n.id)) {
+        item.itemStyle = { opacity: 0.07 };
+        item.label = { show: false };
+        item.__dim = true;
+      }
+      return item;
+    });
+    baseData = data;
+    const links = currentEdges.map(e => {
+      const base = REL_STYLE[e.relation] || { color: '#c6ccd8', width: 1.2 };
+      if (inFocus && closureEdges.has(e)) {
+        return { source: e.source, target: e.target, value: e, lineStyle: { color: '#2f6bff', type: 'dashed', width: 3, opacity: 1 } };
+      }
+      if (inFocus && !(inFocus.has(e.source) && inFocus.has(e.target))) {
+        return { source: e.source, target: e.target, value: e, lineStyle: { ...base, opacity: 0.04 } };
+      }
+      return { source: e.source, target: e.target, value: e, lineStyle: base };
+    });
+    chart.setOption({
+      tooltip: {
+        confine: true, textStyle: { fontSize: 12 },
+        formatter: p => {
+          if (p.dataType === 'node') {
+            const n = p.data.value;
+            const desc = (n.desc || n.purpose || '').replace(/<[^>]+>/g, '');
+            const brief = desc.length > 100 ? desc.slice(0, 100) + '…' : desc;
+            return `<b>${n.label}</b> <span style="color:#999">${TYPES[n.type].name}</span><br>${brief}`;
+          }
+          const e = p.data.value;
+          const s = nodeById.get(e.source), t = nodeById.get(e.target);
+          return `${s ? s.label : e.source} <b style="color:#3b82f6">—${e.relation}→</b> ${t ? t.label : e.target}` +
+            (e.note ? `<br><span style="color:#999">${e.note}</span>` : '');
+        },
+      },
+      legend: [{ data: TYPE_ORDER.map(t => TYPES[t].name), textStyle: { fontSize: 11 } }],
+      series: [{
+        type: 'graph', layout: 'force', roam: true, draggable: true,
+        categories: TYPE_ORDER.map(t => ({
+          name: TYPES[t].name,
+          itemStyle: { color: TYPES[t].color, opacity: 0.62, borderColor: '#ffffff', borderWidth: 1.5 },
+        })),
+        data, links,
+        label: { show: true, fontSize: 10, color: '#4b5563', position: 'right' },
+        labelLayout: { hideOverlap: true },
+        emphasis: {
+          focus: 'none',
+          itemStyle: { opacity: 1 },
+          label: { fontSize: 12, fontWeight: 600, color: '#111' },
+        },
+        force: { repulsion: 170, edgeLength: [35, 100], gravity: 0.08 },
+        scaleLimit: { min: 0.25, max: 4 },
+      }],
+    }, true);
+    if (focus) {
+      statsEl.textContent = `前置追溯：「${focus.rootLabel}」的 ${focus.order.length - 1} 个前置知识点（Esc 或点击空白退出）`;
+    } else {
+      statsEl.textContent = `${currentNodes.length} 个节点 · ${currentEdges.length} 条关系`;
+    }
+  }
+
+  // 从 id 出发沿「前置」边向基础方向广度优先追溯，返回全部前置及其深度
+  function computePrereq(id) {
+    const depth = new Map([[id, 0]]);
+    const queue = [id];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const e of G.edges) {
+        if (e.relation === '前置' && e.target === cur && !depth.has(e.source)) {
+          depth.set(e.source, depth.get(cur) + 1);
+          queue.push(e.source);
+        }
+      }
+    }
+    const order = [...depth.entries()].map(([nid, d]) => ({ id: nid, depth: d })).sort((a, b) => b.depth - a.depth);
+    return { ids: new Set(depth.keys()), order };
+  }
+
+  function toggleFocus(id) {
+    if (focus && focus.root === id) { rebuild(); return; }
+    const { ids, order } = computePrereq(id);
+    focus = { root: id, rootLabel: nodeById.get(id).label, ids, order };
+    // 自动打开前置节点所在板块，避免追溯链被筛选截断
+    let expanded = false;
+    for (const nid of ids) {
+      const m = nodeById.get(nid) && nodeById.get(nid).module;
+      if (m && !activeModules.has(m)) { activeModules.add(m); expanded = true; }
+    }
+    if (expanded) refreshChapterHighlight();
+    updateChart();
+    const idx = currentNodes.findIndex(n => n.id === id);
+    if (idx >= 0) {
+      markSelected(id);
+      selectedIndex = idx;
+    }
+    showPanel(nodeById.get(id));
+  }
+
+  // ── 详情面板 ──────────────────────────────
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function badge(type) {
+    return `<span class="badge" style="background:${TYPES[type].color}">${TYPES[type].name}</span>`;
+  }
+  // 方程式渲染：把 =(条件)= / =(条件)⇌ / ⇌(条件) 转成「条件在等号上方」的教材式排版
+  function renderEquation(raw) {
+    let s = esc(raw);
+    s = s.replace(/([=⇌])\(([^()]+)\)([=⇌])?/g, (m, pre, cond, post) => {
+      const reversible = pre === '⇌' || post === '⇌';
+      const bar = reversible ? '<span class="bar op">⇌</span>' : '<span class="bar"></span>';
+      return `<span class="eq-cond"><span class="cond">${cond}</span>${bar}</span>`;
+    });
+    return s;
+  }
+  function showWelcome() {
+    lastDetail = { type: 'welcome' };
+    if (activeTab !== 'detail') return;
+    panelBody.innerHTML = `
+      <div class="welcome">
+        <b>使用说明</b><br>
+        · 点击<b>节点</b>查看详情与关联，再次点击空白处取消<br>
+        · 有前置知识的节点可点<b>追溯前置</b>，高亮学习路径<br>
+        · 悬停查看提示；<b>搜索</b>支持名称与描述全文匹配<br>
+        · 左侧<b>目录树</b>按教材章节浏览，点击章节切换图谱，「全部板块」恢复<br>
+        · 图例可开关节点类型<br><br>
+        <b>线的含义</b>
+        <div class="legend-row"><span class="legend-line" style="border-color:#6f9bff;border-top-style:dashed"></span>前置（学习顺序）</div>
+        <div class="legend-row"><span class="legend-line" style="border-color:#a7b3c9;border-top-style:dashed"></span>包含（层级）</div>
+        <div class="legend-row"><span class="legend-line" style="border-color:#e05252;border-top-style:dashed"></span>不能共存（离子间会反应）</div>
+        <div class="legend-row"><span class="legend-line" style="border-color:#c6ccd8"></span>反应物 / 生成物 / 属于 / 体现 / 含有 等</div><br>
+        <b>数据范围</b>：${esc(G.meta.curriculum)}（种子 v${esc(G.meta.version)}）
+      </div>`;
+  }
+
+  function neighborRows(id) {
+    const out = G.edges.filter(e => e.source === id)
+      .map(e => ({ e, other: e.target, dir: '→' }));
+    const inc = G.edges.filter(e => e.target === id)
+      .map(e => ({ e, other: e.source, dir: '←' }));
+    const rows = [];
+    for (const { e, other, dir } of [...out, ...inc]) {
+      const n = nodeById.get(other);
+      if (!n) continue;
+      const rel = dir === '←' && ['反应物'].includes(e.relation) ? '作为反应物' :
+                  dir === '→' && ['生成物'].includes(e.relation) ? '生成' : e.relation;
+      rows.push({ e, n, rel });
+    }
+    rows.sort((a, b) => a.e.relation.localeCompare(b.e.relation, 'zh'));
+    return rows.map(({ e, n, rel }) => `
+      <div class="nei-row" data-node="${esc(n.id)}" title="${esc(n.desc || n.purpose || '')}">
+        <span class="rel">${esc(rel)}</span>
+        <span class="dot" style="background:${TYPES[n.type].color}"></span>
+        <span>${esc(n.label)}</span>
+        ${e.note ? `<span class="note">${esc(e.note)}</span>` : ''}
+      </div>`).join('');
+  }
+
+  function showPanel(node) {
+    lastDetail = { type: 'node', node };
+    if (activeTab !== 'detail') return;
+    let html = `<div>${badge(node.type)}<span class="module-tag" style="margin-left:2px">${esc(node.module || '')}</span></div>
+      <h2>${esc(node.label)}</h2>`;
+    if (node.desc) html += `<div class="desc">${esc(node.desc)}</div>`;
+    const pr = computePrereq(node.id);
+    if (pr.order.length > 1) {
+      html += `<button class="focus-btn" id="focusBtn">${focus && focus.root === node.id
+        ? '✕ 退出前置追溯'
+        : `追溯前置知识（${pr.order.length - 1} 个）`}</button>`;
+    }
+    if (focus && focus.root === node.id) {
+      html += `<div class="nei-title">学习路径（先学 → 后学）</div><div class="nei-group">` + pr.order
+        .filter(o => o.id !== node.id)
+        .map((o, i) => {
+          const n = nodeById.get(o.id);
+          return `<div class="nei-row" data-node="${esc(n.id)}"><span class="rel">第 ${i + 1} 步</span><span class="dot" style="background:${TYPES[n.type].color}"></span><span>${esc(n.label)}</span></div>`;
+        }).join('') + `</div>`;
+    }
+    if (node.formula) html += `<div class="equation">${esc(node.formula)}</div>`;
+    if (node.equation) html += `<div class="equation">${renderEquation(node.equation)}</div>`;
+    if (node.condition) html += `<div class="field"><span class="k">条件</span>${esc(node.condition)}</div>`;
+    if (node.phenomenon) html += `<div class="field"><span class="k">现象</span>${esc(node.phenomenon)}</div>`;
+    if (node.redox !== undefined) html += node.redox
+      ? `<span class="flag yes">氧化还原反应</span>`
+      : `<span class="flag no">非氧化还原反应</span>`;
+    if (node.note) html += `<div class="field"><span class="k">备注</span>${esc(node.note)}</div>`;
+    if (node.purpose) html += `<div class="field"><span class="k">目的</span>${esc(node.purpose)}</div>`;
+    if (node.props) {
+      html += `<table class="props">` + Object.entries(node.props)
+        .map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('') + `</table>`;
+    }
+    if (node.points) html += `<div class="nei-title">要点</div><ul class="points">${node.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`;
+    html += `<div class="nei-title">关联（${(G.edges.filter(e => e.source === node.id || e.target === node.id)).length}）</div>
+      <div class="nei-group">${neighborRows(node.id) || '<div class="note">暂无</div>'}</div>`;
+    panelBody.innerHTML = html;
+    const fb = panelBody.querySelector('#focusBtn');
+    if (fb) fb.onclick = () => toggleFocus(node.id);
+    panelBody.querySelectorAll('.nei-row').forEach(row => {
+      row.onclick = () => selectNode(row.dataset.node);
+    });
+  }
+
+  function selectNode(id) {
+    if (activeTab !== 'detail') switchTab('detail');
+    if (!activeModules.has(nodeById.get(id).module)) {
+      activeModules.add(nodeById.get(id).module);
+      refreshChapterHighlight(); rebuild();
+    }
+    const idx = currentNodes.findIndex(n => n.id === id);
+    if (idx === -1) return;
+    const legendName = TYPES[currentNodes[idx].type].name;
+    const legendOff = chart.getOption().legend[0].selected &&
+      chart.getOption().legend[0].selected[legendName] === false;
+    const go = () => {
+      const i = currentNodes.findIndex(n => n.id === id);
+      markSelected(id);
+      selectedIndex = i;
+      showPanel(currentNodes[i]);
+    };
+    if (legendOff) {
+      chart.dispatchAction({ type: 'legendSelect', name: legendName });
+      setTimeout(go, 60);
+    } else go();
+  }
+
+  chart.on('click', params => {
+    if (params.dataType === 'node') selectNode(params.data.id);
+    else if (focus) rebuild();
+    else { markSelected(null); selectedIndex = -1; showWelcome(); }
+  });
+  document.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape') {
+      if (focus) rebuild();
+      else {
+        markSelected(null);
+        selectedIndex = -1; showWelcome();
+      }
+      document.getElementById('searchResults').style.display = 'none';
+    }
+  });
+
+  // ── 搜索 ──────────────────────────────
+  const searchInput = document.getElementById('search');
+  const searchResults = document.getElementById('searchResults');
+  searchInput.addEventListener('input', () => {
+    const q = searchInput.value.trim();
+    if (!q) { searchResults.style.display = 'none'; return; }
+    const hits = G.nodes.filter(n =>
+      n.label.toLowerCase().includes(q.toLowerCase()) ||
+      (n.desc || '').includes(q) || (n.purpose || '').includes(q)
+    ).slice(0, 12);
+    if (!hits.length) {
+      searchResults.innerHTML = '<div class="sr"><span class="sub">无匹配结果</span></div>';
+    } else {
+      searchResults.innerHTML = hits.map(n => `
+        <div class="sr" data-node="${esc(n.id)}">
+          <span class="label">${esc(n.label)}</span>
+          <span>${badge(n.type)}<span class="sub">${esc(n.module || '')}</span></span>
+        </div>`).join('');
+      searchResults.querySelectorAll('.sr[data-node]').forEach(el => {
+        el.onclick = () => {
+          searchResults.style.display = 'none';
+          searchInput.blur();
+          selectNode(el.dataset.node);
+        };
+      });
+    }
+    searchResults.style.display = 'block';
+  });
+  searchInput.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') {
+      const first = searchResults.querySelector('.sr[data-node]');
+      if (first) { searchResults.style.display = 'none'; selectNode(first.dataset.node); searchInput.blur(); }
+    }
+  });
+  document.addEventListener('click', ev => {
+    if (!ev.target.closest('#searchWrap')) searchResults.style.display = 'none';
+  });
+
+  // ── 面板 tab：详情 / AI 问答 ──────────────────────────────
+  function switchTab(name) {
+    if (activeTab === name) return;
+    activeTab = name;
+    panel.querySelectorAll('.ptab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+    if (name === 'detail') {
+      panelBody.classList.remove('wide-pad');
+      if (lastDetail && lastDetail.type === 'node') showPanel(lastDetail.node);
+      else showWelcome();
+    } else {
+      panelBody.classList.add('wide-pad');
+      renderChat();
+    }
+  }
+  panel.querySelectorAll('.ptab').forEach(t => { t.onclick = () => switchTab(t.dataset.tab); });
+  panel.querySelector('#chatSettingsTop').onclick = () => {
+    if (activeTab !== 'chat') switchTab('chat');
+    chatView = 'settings';
+    renderChat();
+  };
+
+  // ── AI 问答（RAG：后端检索图谱子图 + LLM 生成；协议/Key 可在界面配置） ──
+  let chatLog = [];
+  try { chatLog = JSON.parse(localStorage.getItem('chem-chat') || '[]'); } catch { chatLog = []; }
+  const saveChat = () => { try { localStorage.setItem('chem-chat', JSON.stringify(chatLog.slice(-40))); } catch {} };
+
+  // 兜底清洗 LLM 可能输出的 LaTeX 记号，转成纯文本可读形式
+  function cleanMath(s) {
+    return String(s)
+      .replace(/\$\$([^]*?)\$\$/g, '$1')
+      .replace(/\$([^$]*?)\$/g, '$1')
+      .replace(/\\xrightarrow\s*\{([^}]*)\}/g, '=($1)=')
+      .replace(/\\xrightarrow/g, '→')
+      .replace(/\\(right|long)rightarrow|\\to/g, '→')
+      .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '($1)/($2)')
+      .replace(/\\Delta\s?/g, 'Δ')
+      .replace(/\\times/g, '×')
+      .replace(/\\cdot/g, '·')
+      .replace(/\\leq/g, '≤').replace(/\\geq/g, '≥')
+      .replace(/\\(text|mathrm|mathbf)\s*\{([^}]*)\}/g, '$2')
+      .replace(/\\\(/g, '').replace(/\\\)/g, '')
+      .replace(/\\\[|\\\]/g, '')
+      .replace(/\\\\/g, '');
+  }
+
+  // AI 回答轻量 Markdown 渲染：分隔线、表格行、加粗（其余保持纯文本换行）
+  function renderAiText(raw) {
+    const lines = cleanMath(raw).trim().split('\n');
+    const out = [];
+    for (const line of lines) {
+      const t = line.trim();
+      if (/^(-{3,}|={3,}|_{3,}|—{2,}|＊{3,}|\*{3,})$/.test(t)) { out.push('<hr class="md-hr">'); continue; }
+      if (/^\|?[\s:|-]+\|?$/.test(t)) continue; // 表格分隔行 |---|---| 直接丢弃
+      if (/^\|.*\|?$/.test(t) && t.includes('|')) {
+        out.push(esc(t.replace(/^\||\|$/g, '').split('|').map(x => x.trim()).filter(Boolean).join(' · ')));
+        continue;
+      }
+      out.push(esc(line.replace(/^>\s?/, ''))
+        .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+        .replace(/^#{1,4}\s+(.*)$/, '<b>$1</b>'));
+    }
+    return out.join('\n');
+  }
+  let chatView = 'chat'; // chat | settings
+  const LLM_DEFAULTS = { provider: 'openai', baseUrl: '', apiKey: '', model: '' };
+  let llmCfg = (() => {
+    try { return { ...LLM_DEFAULTS, ...JSON.parse(localStorage.getItem('chem-llm-cfg') || '{}') }; }
+    catch { return { ...LLM_DEFAULTS }; }
+  })();
+
+  function renderLlmSettings() {
+    panelBody.innerHTML = `<div id="llmSettings">
+      <h3>AI 问答设置</h3>
+      <div class="sub">支持任何兼容服务——OpenAI 兼容（/chat/completions）或 Anthropic 兼容（/v1/messages）。配置只保存在你自己的浏览器（localStorage），各用各的配额；本站服务器仅做转发、不保存你的 Key。</div>
+      <label>接口协议</label>
+      <select id="cfgProvider">
+        <option value="openai">OpenAI 兼容（/chat/completions）</option>
+        <option value="anthropic">Anthropic 兼容（/v1/messages）</option>
+      </select>
+      <label>接口地址 Base URL</label>
+      <input id="cfgBaseUrl" spellcheck="false" placeholder="如 https://api.xxx.com/v1">
+      <label>API Key（留空则使用服务器端配置）</label>
+      <input id="cfgApiKey" type="password" spellcheck="false" placeholder="sk-…">
+      <label>模型名称</label>
+      <input id="cfgModel" spellcheck="false" placeholder="按服务开通的模型填写">
+      <div class="row2">
+        <button id="cfgReset">清空配置</button>
+        <button id="cfgSave" class="primary">保存并返回</button>
+      </div>
+      <div class="tip">以商汤 SenseNova 为例（仅示例，非预设默认）：地址 <code>https://token.sensenova.cn/v1</code>，模型 <code>sensenova-6.8-flash-lite</code>，Key 在其控制台创建（两种协议都支持）。DeepSeek、Kimi、Claude 等其他兼容服务改地址、模型和 Key 即可；提示 404 model is not found 说明 Key 有效但模型名不对，以服务商开通的模型为准。</div>
+    </div>`;
+    const $ = (id) => panelBody.querySelector('#' + id);
+    $('cfgProvider').value = llmCfg.provider;
+    $('cfgBaseUrl').value = llmCfg.baseUrl;
+    $('cfgApiKey').value = llmCfg.apiKey;
+    $('cfgModel').value = llmCfg.model;
+    const errEl = document.createElement('div');
+    errEl.className = 'sub';
+    errEl.style.color = '#e05252';
+    errEl.style.display = 'none';
+    $('cfgReset').parentNode.insertBefore(errEl, $('cfgReset').parentNode.firstChild);
+    $('cfgSave').onclick = () => {
+      const baseUrl = $('cfgBaseUrl').value.trim();
+      const model = $('cfgModel').value.trim();
+      if (!baseUrl || !model) {
+        errEl.textContent = '接口地址和模型名称需要填写（API Key 可留空以使用服务器端配置）。';
+        errEl.style.display = 'block';
+        return;
+      }
+      errEl.style.display = 'none';
+      llmCfg = {
+        provider: $('cfgProvider').value === 'anthropic' ? 'anthropic' : 'openai',
+        baseUrl, model,
+        apiKey: $('cfgApiKey').value.trim(),
+      };
+      try { localStorage.setItem('chem-llm-cfg', JSON.stringify(llmCfg)); } catch {}
+      chatView = 'chat';
+      renderChat();
+    };
+    $('cfgReset').onclick = () => {
+      llmCfg = { ...LLM_DEFAULTS };
+      try { localStorage.removeItem('chem-llm-cfg'); } catch {}
+      renderLlmSettings();
+    };
+  }
+
+  function renderChat() {
+    if (chatView === 'settings') { renderLlmSettings(); return; }
+    panelBody.innerHTML = `
+      <div id="chatWrap">
+        <div id="chatLog"></div>
+        <div id="chatInputRow">
+          <button id="chatClear" title="清空对话">清空</button>
+          <textarea id="chatInput" rows="1" placeholder="问点什么，如：Fe3+和什么离子不能共存？"></textarea>
+          <button id="chatSend">发送</button>
+        </div>
+      </div>`;
+    const logEl = panelBody.querySelector('#chatLog');
+    const chipLabel = (label) => label.length > 14 ? label.slice(0, 14) + '…' : label;
+    const paint = (expandedFor) => {
+      logEl.innerHTML = chatLog.map((m, mi) => {
+        const inner = m.role === 'user'
+          ? `<div class="bubble">${esc(m.content)}</div>`
+          : `<div class="bubble${m.error ? ' thinking' : ''}">${renderAiText(m.content)}</div>` +
+            (m.context && m.context.length
+              ? `<div class="ctx-chips">${(() => {
+                  const list = expandedFor === mi ? m.context : m.context.slice(0, 5);
+                  let html = list.map(c => `<span data-node="${esc(c.id)}" title="${esc(c.label)}（点击查看图谱节点）">图谱：${esc(chipLabel(c.label))}</span>`).join('');
+                  if (expandedFor !== mi && m.context.length > 5) html += `<span class="more" data-more="${mi}">+${m.context.length - 5}</span>`;
+                  return html;
+                })()}</div>`
+              : '');
+        return `<div class="msg ${m.role === 'user' ? 'user' : 'ai'}">${inner}</div>`;
+      }).join('') || `<div class="msg ai"><div class="bubble thinking" id="chatIntro">AI 问答基于图谱检索增强。首次使用请点右上角 ⚙ 填入你自己的兼容服务 Key——保存在你浏览器本地，各用各的配额，服务器只转发、不保存。</div></div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    paint();
+    const bindChips = () => {
+      logEl.querySelectorAll('.ctx-chips span[data-node]').forEach(el => {
+        el.onclick = () => { switchTab('detail'); selectNode(el.dataset.node); };
+      });
+      logEl.querySelectorAll('.ctx-chips span.more').forEach(el => {
+        el.onclick = () => { paint(Number(el.dataset.more)); bindChips(); };
+      });
+    };
+    bindChips();
+    panelBody.querySelector('#chatClear').onclick = () => { chatLog = []; saveChat(); renderChat(); };
+    const input = panelBody.querySelector('#chatInput');
+    const sendBtn = panelBody.querySelector('#chatSend');
+    const doSend = async () => {
+      const q = input.value.trim();
+      if (!q || sendBtn.disabled) return;
+      input.value = '';
+      sendBtn.disabled = true;
+      chatLog.push({ role: 'user', content: q });
+      const thinkingIdx = chatLog.push({ role: 'assistant', content: '思考中…（正在检索图谱并调用 AI 服务）', error: true }) - 1;
+      paint();
+      try {
+        const resp = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: q,
+            llm: llmCfg,
+            history: chatLog.filter(m => !m.error).slice(-7, -1).map(({ role, content }) => ({ role, content })),
+          }),
+        });
+        let data = null;
+        try { data = await resp.json(); } catch { /* 非 JSON 响应（如纯静态托管返回的 404/405 文本） */ }
+        if (resp.ok && data) {
+          chatLog[thinkingIdx] = { role: 'assistant', content: data.answer, context: data.context || [] };
+        } else if (!data && (resp.status === 404 || resp.status === 405)) {
+          chatLog[thinkingIdx] = {
+            role: 'assistant', error: true,
+            content: '⚠️ AI 问答需要图谱服务器支持（当前是纯静态托管）。浏览、搜索、前置追溯等功能不受影响；需要 AI 问答时，请在部署处运行 node server.js，或把 /api/ask 反代到一台图谱服务器。',
+          };
+        } else {
+          chatLog[thinkingIdx] = { role: 'assistant', content: '⚠️ ' + ((data && data.error) || `请求失败（HTTP ${resp.status}）`), error: true };
+        }
+      } catch (e) {
+        chatLog[thinkingIdx] = { role: 'assistant', content: '⚠️ 网络错误：' + e.message, error: true };
+      }
+      saveChat();
+      sendBtn.disabled = false;
+      renderChat();
+      panelBody.querySelector('#chatInput').focus();
+    };
+    sendBtn.onclick = doSend;
+    input.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); doSend(); }
+    });
+    input.focus();
+  }
+
+  window.addEventListener('resize', () => chart.resize());
+
+  // ── 面板宽度：默认加宽 + 拖拽调整（持久化到 localStorage） ──
+  const dragEl = document.getElementById('panelDrag');
+  const applyPanelW = (w) => { panel.style.width = Math.round(w) + 'px'; chart.resize(); };
+  if (window.innerWidth > 980) {
+    const saved = Number(localStorage.getItem('chem-panel-w'));
+    if (saved >= 280) applyPanelW(saved);
+  }
+  let dragState = null;
+  dragEl.addEventListener('mousedown', (e) => {
+    if (window.innerWidth <= 980) return;
+    dragState = true;
+    dragEl.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragState) return;
+    const w = Math.min(Math.max(window.innerWidth - e.clientX, 280), Math.round(window.innerWidth * 0.7));
+    applyPanelW(w);
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragState) return;
+    dragState = false;
+    dragEl.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    try { localStorage.setItem('chem-panel-w', String(parseInt(panel.style.width, 10))); } catch {}
+  });
+
+  buildToc();
+  const initHash = parseHash();
+  if (initHash.mods) {
+    activeModules = new Set(initHash.mods);
+    refreshChapterHighlight();
+  }
+  rebuild();
+  if (initHash.node) selectNode(initHash.node);
+};
+</script>
+</body>
+</html>
