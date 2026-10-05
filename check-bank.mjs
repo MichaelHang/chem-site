@@ -11,6 +11,16 @@ const MODULES = {
 const src = readFileSync(new URL('./bank.js', import.meta.url), 'utf8');
 const RAW_BANK = new Function(src + '\n;return RAW_BANK;')();
 
+// kp 字段校验依赖图谱仓库（同机 ../chem-knowledge-graph）；不存在时跳过该组检查
+// 图谱数据地址：默认本地图谱服务器，可用环境变量覆盖（如已部署的图谱网址）
+const GRAPH_BASE = process.env.GRAPH_BASE || 'http://127.0.0.1:8930';
+let GRAPH_IDS = null;
+try {
+  const res = await fetch(GRAPH_BASE + '/graph.json');
+  if (!res.ok) throw new Error(res.status);
+  GRAPH_IDS = new Set((await res.json()).nodes.map(n => n.id));
+} catch { /* 图谱不可达则跳过 kp 存在性校验（联机后重跑即可） */ }
+
 const problems = [];
 let total = 0;
 for (const [bank, qs] of Object.entries(RAW_BANK)) {
@@ -27,6 +37,14 @@ for (const [bank, qs] of Object.entries(RAW_BANK)) {
     if (!q.explain) at('缺解析');
     if (!q.module) at('缺 module');
     else if (!MODULES[bank] || !MODULES[bank].includes(q.module)) at(`module "${q.module}" 不在模块表中`);
+    if (q.kp !== undefined) {
+      if (!Array.isArray(q.kp) || !q.kp.length) at('kp 应为非空数组');
+      else {
+        if (GRAPH_IDS) for (const id of q.kp) if (!GRAPH_IDS.has(id)) at(`kp 节点不存在于图谱: ${id}`);
+        const dup = q.kp.filter((x, i) => q.kp.indexOf(x) !== i);
+        if (dup.length) at(`kp 重复: ${[...new Set(dup)].join(',')}`);
+      }
+    }
   }
   console.log(`${bank}: ${qs.length} 题`);
 }

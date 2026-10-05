@@ -73,6 +73,25 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .opt .lab{font-weight:600;margin-right:2px;}
 .explain{background:var(--bg);padding:11px 13px;border-radius:10px;font-size:13px;color:#465562;margin:10px 0;}
 .explain b{color:var(--primary-dark);}
+/* ── 相关知识点（图谱 kp 链接）── */
+.kp-row{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.kp-t{font-size:12px;color:#8a94a6;}
+.kp-chip{font-size:12px;padding:3px 10px;border-radius:999px;background:#eef4ff;border:1px solid #c7d7f5;color:#1d5fd6;cursor:pointer;user-select:none;}
+.kp-chip:hover{background:#dcebff;}
+.kp-mask{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;}
+.kp-card{position:relative;background:#fff;border-radius:16px;max-width:420px;width:100%;max-height:82vh;overflow-y:auto;padding:18px 20px 16px;box-shadow:0 18px 50px rgba(15,23,42,.25);}
+.kp-card h3{margin:8px 0 4px;font-size:17px;line-height:1.4;}
+.kp-card .kp-mod{font-size:12px;color:#8a94a6;}
+.kp-badge{display:inline-block;color:#fff;font-size:11px;border-radius:5px;padding:2px 8px;}
+.kp-eq{font-family:"SF Mono",Menlo,Consolas,monospace;background:#f5f7fb;border:1px solid #e4e7ee;border-radius:8px;padding:9px 11px;font-size:13px;margin:9px 0;line-height:1.6;}
+.kp-desc{font-size:13px;line-height:1.8;color:#374151;margin:8px 0;}
+.kp-props{width:100%;border-collapse:collapse;font-size:12.5px;margin:8px 0;}
+.kp-props td{border:1px solid #e4e7ee;padding:5px 8px;}
+.kp-props td:first-child{color:#8a94a6;background:#fafbfd;white-space:nowrap;}
+.kp-points{padding-left:18px;font-size:13px;line-height:1.9;color:#374151;margin:8px 0;}
+.kp-foot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:10px;border-top:1px solid #eef1f6;}
+.kp-foot a{font-size:13px;color:#1d5fd6;text-decoration:none;font-weight:600;}
+.kp-x{position:absolute;top:10px;right:14px;font-size:20px;color:#8a94a6;cursor:pointer;border:none;background:none;}
 .quiz-acts{display:flex;gap:10px;margin-top:6px;}
 .quiz-acts button{flex:1;}
 /* wrong book */
@@ -472,6 +491,74 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 
 <script src="bank.js"></script>
 <script>
+/* ── 相关知识点（kp）渲染与卡片：数据源为同域 graph/（知识图谱合并部署产物） ── */
+(function () {
+  // 知识图谱网址：部署图谱后填它的网址（末尾不带 /），如 'https://chem-graph.pages.dev'
+  // 临时指定可不改代码：控制台执行 localStorage.setItem('chem-graph-base','http://127.0.0.1:8930')
+  const GRAPH_BASE = (localStorage.getItem('chem-graph-base') || '').replace(/\/+$/, '');
+  const KP_COLORS = { concept:'#5B8FF9', substance:'#38B27E', reaction:'#EE7725', category:'#8A72E8', experiment:'#22A2A8', pitfall:'#E0559D' };
+  const KP_TYPE = { concept:'概念', substance:'物质', reaction:'反应', category:'类别', experiment:'实验', pitfall:'易错点' };
+  let labels = null;
+  let graphPromise = null;
+  function loadLabels() {
+    if (labels) return Promise.resolve(labels);
+    return fetch(GRAPH_BASE + '/kp-labels.json').then(r => r.ok ? r.json() : {}).then(m => { labels = m || {}; return labels; }).catch(() => { labels = {}; return labels; });
+  }
+  function loadGraph() {
+    if (!graphPromise) graphPromise = fetch(GRAPH_BASE + '/graph.json').then(r => r.json());
+    return graphPromise;
+  }
+  function hydrate() {
+    loadLabels().then(m => {
+      document.querySelectorAll('.kp-chip[data-kp]').forEach(el => {
+        if (el.dataset.done) return;
+        const info = m[el.dataset.kp];
+        el.textContent = info ? info.label : el.dataset.kp;
+        el.dataset.done = '1';
+      });
+    });
+  }
+  window.kpLinksHtml = function (q) {
+    if (!q.kp || !q.kp.length) return '';
+    const chips = q.kp.map(id => '<span class="kp-chip" data-kp="' + id + '">…</span>').join('');
+    setTimeout(hydrate, 0);
+    return '<div class="kp-row"><span class="kp-t">相关知识点</span>' + chips + '</div>';
+  };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function openKpCard(id) {
+    loadGraph().then(g => {
+      const n = (g.nodes || []).find(x => x.id === id);
+      if (!n) return;
+      let html = '<div class="kp-mask" id="kpMask"><div class="kp-card">'
+        + '<button class="kp-x" id="kpX" aria-label="关闭">×</button>'
+        + '<span class="kp-badge" style="background:' + (KP_COLORS[n.type] || '#5B8FF9') + '">' + (KP_TYPE[n.type] || n.type) + '</span>'
+        + ' <span class="kp-mod">' + esc(n.module || '') + '</span>'
+        + '<h3>' + esc(n.label) + '</h3>';
+      if (n.desc) html += '<div class="kp-desc">' + esc(n.desc) + '</div>';
+      if (n.formula) html += '<div class="kp-eq">' + esc(n.formula) + '</div>';
+      if (n.equation) html += '<div class="kp-eq">' + esc(n.equation) + '</div>';
+      if (n.condition) html += '<div class="kp-desc"><b>条件：</b>' + esc(n.condition) + '</div>';
+      if (n.phenomenon) html += '<div class="kp-desc"><b>现象：</b>' + esc(n.phenomenon) + '</div>';
+      if (n.note) html += '<div class="kp-desc"><b>备注：</b>' + esc(n.note) + '</div>';
+      if (n.props) html += '<table class="kp-props">' + Object.entries(n.props).map(([k, v]) => '<tr><td>' + esc(k) + '</td><td>' + esc(v) + '</td></tr>').join('') + '</table>';
+      if (n.points) html += '<ul class="kp-points">' + n.points.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>';
+      html += '<div class="kp-foot"><span style="font-size:12px;color:#8a94a6">来源：化学知识图谱</span>'
+        + '<a href="' + GRAPH_BASE + '/index.html#n=' + encodeURIComponent(id) + '" target="_blank" rel="noopener">在图谱中查看全景 →</a></div>'
+        + '</div></div>';
+      document.body.insertAdjacentHTML('beforeend', html);
+      document.getElementById('kpX').onclick = closeKpCard;
+      document.getElementById('kpMask').addEventListener('click', e => { if (e.target.id === 'kpMask') closeKpCard(); });
+    });
+  }
+  function closeKpCard() { const m = document.getElementById('kpMask'); if (m) m.remove(); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeKpCard(); });
+  document.addEventListener('click', e => {
+    const chip = e.target.closest('.kp-chip');
+    if (chip) { e.preventDefault(); openKpCard(chip.dataset.kp); }
+  });
+})();
+</script>
+<script>
 /* 计时模式状态（提前声明，避免初始化 renderAll 时的暂时性死区 TDZ） */
 const DUR_MIN = 1, DUR_MAX = 10, DUR_DEFAULT = 5;
 let TIMED = null;
@@ -771,6 +858,7 @@ function renderQuizResult(bank, q, chosen, correct){
       }).join('')}
     </div>
     <div class="explain"><b>解析：</b>${esc(q.explain)}</div>
+    ${kpLinksHtml(q)}
     <div class="quiz-acts"><button class="btn-primary" id="quizClose">完成</button></div>`;
   document.getElementById('quizClose').addEventListener('click',closeReviewQuiz);
 }
@@ -1275,7 +1363,7 @@ function renderLevelAnswered(){
     '<div>'+q.options.map((o,i)=>{ let cls='opt'; if(i===q.answer) cls+=' right'; else if(i===chosen) cls+=' wrong';
       const tag=i===q.answer?'<b style="color:#2ecc71;margin-left:6px;">正确答案</b>':(i===chosen?'<b style="color:#e74c3c;margin-left:6px;">你的选择</b>':'');
       return '<div class="'+cls+'"><span class="mark">'+letters[i]+'</span><span>'+esc(o)+tag+'</span></div>'; }).join('')+'</div>'+
-    '<div class="explain"><b>解析：</b>'+esc(q.explain)+'</div>'+
+    '<div class="explain"><b>解析：</b>'+esc(q.explain)+'</div>'+kpLinksHtml(q)+
     '<div class="quiz-acts">'+(c.idx>0?'<button class="btn-ghost" id="lvPrev">上一题</button>':'')+
     '<button class="btn-primary" id="lvNext">'+(c.idx+1<c.total?'下一题':'查看结算')+'</button></div>';
   const prev=document.getElementById('lvPrev');
