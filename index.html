@@ -546,8 +546,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
       if (n.points) html += '<ul class="kp-points">' + n.points.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>';
       const u = GRAPH_BASE + '/index.html#n=' + encodeURIComponent(id);
       html += '<div class="kp-foot"><span style="font-size:12px;color:#8a94a6">来源：化学知识图谱</span>'
-        + '<span><a href="' + u + '&sub=1" target="_blank" rel="noopener">🔍 聚焦查看</a>　'
-        + '<a href="' + u + '" target="_blank" rel="noopener">全景</a></span></div>'
+        + '<a href="' + u + '&sub=1" target="_blank" rel="noopener">在图谱中查看 →</a></div>'
         + '</div></div>';
       document.body.insertAdjacentHTML('beforeend', html);
       document.getElementById('kpX').onclick = closeKpCard;
