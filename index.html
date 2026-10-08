@@ -1384,8 +1384,14 @@ function levelSubmit(bank,q,chosen){
   renderLevelAnswered();
   renderAll();
 }
-function renderLevelResult(){
-  const c=LEVEL_CTX; const rate=c.correct/c.total; const pass=rate>=c.pass;
+/* 结算关卡：答完全部题目才落库（通关/最佳/次数/+20），看没看结果页都生效；
+   finished 标记防止结果页已结算后关闭时重复计分。没答完不算过，直接放行。 */
+function finalizeLevel(){
+  const c=LEVEL_CTX;
+  if(!c || c.finished) return null;
+  const allAnswered=c.total>0 && c.qids.every((_,i)=>c.answers[i]!==undefined);
+  if(!allAnswered) return null;
+  const rate=c.correct/c.total; const pass=rate>=c.pass;
   let firstClear=false;
   if(!isDev()){
     const st=getLevelState(c.levelId); firstClear=!st.cleared && pass;
@@ -1393,6 +1399,12 @@ function renderLevelResult(){
     if(firstClear){ addPoints('earn',20,'通关：'+c.module+' 第'+(c.batchIndex+1)+'关'); }
     refreshModuleState(LEVELS.find(x=>x.id===c.moduleId));
   }
+  c.finished=true;
+  return {pass, firstClear};
+}
+function renderLevelResult(){
+  const c=LEVEL_CTX; const rate=c.correct/c.total; const pass=rate>=c.pass;
+  const res=finalizeLevel(); const firstClear=res?res.firstClear:false;
   const box=document.getElementById('levelBody');
   box.innerHTML=
     '<div style="text-align:center;padding:14px 0;">'+
@@ -1404,7 +1416,7 @@ function renderLevelResult(){
   document.getElementById('lvBack').addEventListener('click',closeLevel);
   renderAll();
 }
-function closeLevel(){ document.getElementById('levelModal').classList.remove('show'); LEVEL_CTX=null; if(CURRENT_SUB) renderLevelSub(CURRENT_SUB); }
+function closeLevel(){ finalizeLevel(); document.getElementById('levelModal').classList.remove('show'); LEVEL_CTX=null; if(CURRENT_SUB) renderLevelSub(CURRENT_SUB); }
 function closeSub(){ document.getElementById('levelSub').classList.remove('show'); CURRENT_SUB=null; }
 
 /* ===== 关卡事件 ===== */
