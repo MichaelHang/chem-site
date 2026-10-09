@@ -124,6 +124,7 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .lv-card.open .lv-tag{color:var(--primary);}
 .lv-card.locked .lv-tag{color:#999;}
 .lv-go{margin-top:8px;background:var(--primary);color:#fff;border:none;border-radius:9px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;min-height:40px;}
+.lv-unlock{margin-top:8px;background:var(--orange);color:#fff;border:none;border-radius:9px;padding:9px;font-weight:700;font-size:13px;cursor:pointer;min-height:40px;}
 .lv-lock{position:absolute;top:10px;right:12px;color:#bbb;}
 .lv-progress{font-size:13px;color:var(--muted);margin-bottom:10px;}
 .bar{height:12px;background:#e3eaf2;border-radius:20px;overflow:hidden;}
@@ -764,6 +765,7 @@ function getLevelState(id){
 function saveLevelState(id,st){ const all=getArr(ukey('levels')).filter(x=>x.id!==id&&x.id); all.push({...st,id}); setArr(ukey('levels'),all); syncUp(); }
 function levelUnlocked(lv,list){
   if(isDev()) return true;
+  if(getLevelState(lv.id).unlocked) return true; /* 积分解锁的关卡保持开放 */
   const same=list.filter(x=>x.bank===lv.bank);
   const i=same.indexOf(lv);
   if(i<=0) return true;
@@ -999,6 +1001,22 @@ document.querySelectorAll('.tabbar button').forEach(b=>b.addEventListener('click
 /* ===== 事件委托 ===== */
 document.body.addEventListener('click',e=>{
   const t=e.target;
+  // 积分解锁关卡（模块 100 分 / 小关 50 分）
+  const ub=t.closest('[data-unlock]');
+  if(ub){
+    const id=ub.dataset.unlock, cost=Number(ub.dataset.ucost||100);
+    const isBatch=id.includes('#');
+    const name=isBatch ? (id.split('::')[1].split('#')[0]+' · 第 '+(Number(id.split('#')[1])+1)+' 关') : id.split('::')[1];
+    openModal('解锁关卡','花 '+cost+' 积分解锁「'+name+'」？解锁永久有效。',()=>{
+      if(balance()<cost){ toast('积分不足（需要 '+cost+' 分，当前 '+balance()+' 分）'); return; }
+      addPoints('spend',cost,'解锁：'+name);
+      saveLevelState(id,{...getLevelState(id), unlocked:true});
+      renderAll();
+      if(CURRENT_SUB) renderLevelSub(CURRENT_SUB);
+      toast('已解锁「'+name+'」');
+    });
+    return;
+  }
   const lvEl=t.closest('[data-level]'); if(lvEl){ openLevel(lvEl.dataset.level); return; }
   if(t.dataset.review){
     const b=t.dataset.review;
@@ -1252,7 +1270,8 @@ function renderLevels(){
       const tag=st.cleared?'已通关':(unlocked?'可挑战':'未解锁');
       const best=st.best?(' · 最佳'+Math.round(st.best*100)+'%'):'';
       const lock=unlocked?'':'<span class="lv-lock">锁</span>';
-      const btn=unlocked?'<button class="lv-go" data-level="'+esc(lv.id)+'">进入</button>':'';
+      const btn=unlocked?'<button class="lv-go" data-level="'+esc(lv.id)+'">进入</button>'
+        :'<button class="lv-unlock" data-unlock="'+esc(lv.id)+'" data-ucost="100">解锁 · 100 分</button>';
       return '<div class="lv-card '+cls+'" '+(unlocked?'data-level="'+esc(lv.id)+'"':'')+'>'+lock+
         '<div class="lv-name">'+esc(lv.module)+'</div>'+
         '<div class="lv-sub">'+lv.qids.length+' 题 · '+buildBatches(lv).length+' 关 · 已通 '+buildBatches(lv).filter((_,i)=>getLevelState(batchId(lv,i)).cleared).length+'/'+buildBatches(lv).length+'</div>'+
@@ -1279,6 +1298,7 @@ function buildBatches(lv){ const ids=lv.qids.slice(), bs=[]; for(let i=0;i<ids.l
 function batchId(lv,i){ return lv.id+'#'+i; }
 function batchUnlocked(lv,i){
   if(isDev()) return true;
+  if(getLevelState(batchId(lv,i)).unlocked) return true; /* 积分解锁的小关保持开放 */
   if(!levelUnlocked(lv,LEVELS)) return false;
   if(i<=0) return true;
   return getLevelState(batchId(lv,i-1)).cleared;
@@ -1309,9 +1329,10 @@ function renderLevelSub(lv){
     const st=getLevelState(batchId(lv,i));
     const unlocked=batchUnlocked(lv,i);
     const cls=st.cleared?'cleared':(unlocked?'open':'locked');
-    const best=st.best?(' · 最佳'+Math.round(st.best*100)+'%'):'';
-    const lock=unlocked?'':'<span class="lv-lock">锁</span>';
-    const btn=unlocked?'<button class="lv-go" data-batch="'+i+'">进入</button>':'';
+      const best=st.best?(' · 最佳'+Math.round(st.best*100)+'%'):'';
+      const lock=unlocked?'':'<span class="lv-lock">锁</span>';
+      const btn=unlocked?'<button class="lv-go" data-batch="'+i+'">进入</button>'
+        :'<button class="lv-unlock" data-unlock="'+esc(batchId(lv,i))+'" data-ucost="50">解锁 · 50 分</button>';
     return '<div class="lv-card '+cls+'" '+(unlocked?'data-batch="'+i+'"':'')+'>'+lock+
       '<div class="lv-name">第 '+(i+1)+' 关</div>'+
       '<div class="lv-sub">'+chunk.length+' 题 · 达标 '+Math.round(lv.pass*100)+'%'+best+'</div>'+
