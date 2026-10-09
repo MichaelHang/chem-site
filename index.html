@@ -1097,14 +1097,14 @@ function startTimed(dur){
 function timedTick(){
   if(!TIMED) return;
   const remain=Math.max(0, TIMED.endAt-Date.now());
-  if(remain<=0){ endTimed(); return; }
+  if(remain<=0){ endTimed(true); return; }
   const m=Math.floor(remain/60000), s=Math.floor((remain%60000)/1000);
   document.getElementById('timedClock').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
 }
 function renderTimedQuestion(){
   if(!TIMED) return;
   const q=pickRandomAll();
-  if(!q){ toast('题库为空'); endTimed(); return; }
+  if(!q){ toast('题库为空'); endTimed(true); return; }
   TIMED.currentQ=q;
   // 找出 q 所属 bank（knowledge 或 experiment）
   let qBank='knowledge';
@@ -1152,9 +1152,16 @@ function submitTimedAnswer(chosen){
     if(TIMED) renderTimedQuestion();
   }, 500);
 }
-function endTimed(){
+function endTimed(completed){
   if(!TIMED) return;
   if(TIMED_INTERVAL){ clearInterval(TIMED_INTERVAL); TIMED_INTERVAL=null; }
+  /* 提前结束（时间未到）：放弃本轮，不保存记录，直接回设置页 */
+  if(!completed){
+    TIMED=null;
+    showTimedState('setup');
+    toast('本轮未完成，未计入记录');
+    return;
+  }
   // 落库：每个时长只保留 TOP 10（按答题数、平局比正确数），成绩榜语义不变且数据有硬上限
   const recs=getArr(ukey('timed'));
   recs.push({id:uid(), duration:TIMED.duration, count:TIMED.count, correct:TIMED.correct, date:todayStr()});
@@ -1217,7 +1224,7 @@ document.body.addEventListener('click',e=>{
   if(t.id==='timedStart'){ startTimed(TIMED_DURATION); return; }
   if(t.id==='timedGiveUp'){
     if(!TIMED) return;
-    openModal('结束本轮','确定结束本轮？已答题数将保存到记录。',()=>endTimed());
+    openModal('结束本轮','时间未到，本轮将视为放弃，不会保存任何记录。确定结束？',()=>endTimed(false));
     return;
   }
   if(t.id==='timedAgain'){
