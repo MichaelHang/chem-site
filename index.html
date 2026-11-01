@@ -146,6 +146,10 @@ select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:1
 .modal .row{display:flex;gap:10px;}
 .modal .row button{flex:1;border-radius:10px;padding:12px;font-size:15px;font-weight:600;min-height:46px;}
 .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;}
+/* 关卡弹窗：标题/关闭按钮固定，仅内容区滚动 */
+#levelSub .modal,#levelModal .modal{display:flex;flex-direction:column;overflow:hidden;}
+#levelSub .modal-head,#levelModal .modal-head{flex:0 0 auto;}
+#levelBatchList,#levelBody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .modal-x{flex:0 0 auto;width:34px;height:34px;border:none;background:#eef2f6;color:#465562;border-radius:50%;font-size:20px;line-height:1;cursor:pointer;padding:0;}
 .modal-x:active{background:#dfe6ec;}
 .switch{position:relative;display:inline-block;width:46px;height:26px;flex:0 0 auto;}
